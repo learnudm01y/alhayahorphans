@@ -237,8 +237,8 @@ class RecordsManagementController extends Controller
                 'data_relationship' => 'nullable|string|max:100',
                 'data_birth_date' => 'nullable|date',
                 'data_gender' => 'nullable|in:1,2',
-                'data_phone_number' => 'nullable|integer',
-                'data_alt_phone_number' => 'nullable|integer',
+                'data_phone_number' => ['nullable', 'regex:/^05\d{8}$/'],
+                'data_alt_phone_number' => ['nullable', 'regex:/^05\d{8}$/'],
                 'data_number_of_individuals' => 'nullable|integer',
                 'data_marital_status' => 'nullable|string',
                 'data_academic_qualification' => 'nullable|string',
@@ -263,6 +263,12 @@ class RecordsManagementController extends Controller
                 // 'person_identity_number' => 'required|string',
                 'file_type' => 'nullable|string',
                 'document_file.*' => 'nullable|file|mimes:jpg,jpeg,png,pdf,heic,heif|max:5120',
+                'attachments' => 'sometimes|array',
+                'attachments.*.temp_path' => ['nullable', 'string', 'max:255', 'regex:#^temp_uploads/\d{6}/[^/\x5c]+$#'],
+                'attachments.*.person_identity_number' => 'nullable|string|max:50',
+                'attachments.*.stored_file_name' => 'nullable|string|max:255',
+                'attachments.*.file_type' => 'nullable|string|max:100',
+                'attachments.*.file_id_number' => 'nullable|string|max:20',
             ], [
                 'file_id_number.required' => 'رقم الملف الموحد مطلوب.',
                 'document_file.*.mimes' => 'يجب أن تكون صيغة الملف jpg أو jpeg أو png أو pdf أو heic.',
@@ -491,23 +497,26 @@ class RecordsManagementController extends Controller
             }
 
             // معالجة المرفقات الجديدة كمصفوفة Laravel
-            $attachments = $request->file('attachments') ?? [];
             $attachmentsData = $request->input('attachments', []);
+            $pendingAttachmentStores = [];
+            $deferredTempCleanup = [];
+            $seenAttachments = [];
+            $attachmentsHasFileHash = \Illuminate\Support\Facades\Schema::hasColumn('attachments', 'file_hash');
 
-            foreach ($attachments as $index => $fileArray) {
-                // إذا كان $fileArray عبارة عن مصفوفة فيها 'file' => UploadedFile
-                $file = is_array($fileArray) && isset($fileArray['file']) ? $fileArray['file'] : $fileArray;
-                $personType = $attachmentsData[$index]['person_identity_number'] ?? null; // هذا قد يكون نص مثل main أو family_0 أو رقم
-                $fileType = $attachmentsData[$index]['file_type'] ?? null;
-                // استخدم رقم الملف مع الأصفار البادئة دائماً
-                $fileIdNumberAttach = isset($attachmentsData[$index]['file_id_number'])
-                    ? str_pad($attachmentsData[$index]['file_id_number'], 6, '0', STR_PAD_LEFT)
-                    : $fileIdNumber;
-                if (!$file) {
+            foreach ($attachmentsData as $index => $attachmentData) {
+                $file = $request->file("attachments.{$index}.file");
+                $tempPath = $attachmentData['temp_path'] ?? null;
+                if ($tempPath && !$this->isAllowedTempPath($tempPath)) {
+                    $tempPath = null;
+                }
+                if (!$file && !$tempPath) {
                     continue;
                 }
 
-                // استخراج رقم الهوية الحقيقي حسب نوع الشخص
+                $personType = $attachmentData['person_identity_number'] ?? null;
+                $fileType = $attachmentData['file_type'] ?? null;
+                $fileIdNumberAttach = $fileIdNumber;
+
                 $realPersonId = null;
                 if ($personType === 'main') {
                     $realPersonId = $request->input('data_id_number');
@@ -515,50 +524,112 @@ class RecordsManagementController extends Controller
                     $realPersonId = $request->input('father_id');
                 } elseif ($personType === 'deceased_mother') {
                     $realPersonId = $request->input('mother_id');
-                } elseif (strpos($personType, 'family_') === 0) {
+                } elseif (strpos((string) $personType, 'family_') === 0) {
                     $familyIndex = (int)str_replace('family_', '', $personType);
                     $familyMembers = $request->input('family_members', []);
-                    $realPersonId = isset($familyMembers[$familyIndex]['person_id']) ? $familyMembers[$familyIndex]['person_id'] : null;
-                } elseif (preg_match('/^additional_deceased_(\d+)$/', $personType, $matches)) {
+                    $realPersonId = $familyMembers[$familyIndex]['person_id'] ?? null;
+                } elseif (preg_match('/^additional_deceased_(\d+)$/', (string) $personType, $matches)) {
                     $realPersonId = $request->input("additional_deceased.{$matches[1]}.id_number");
                 } else {
-                    // إذا كان رقم فعلي بالفعل
                     $realPersonId = is_numeric($personType) ? $personType : null;
                 }
 
-                // فقط إذا كان رقم الهوية رقمي وغير فارغ
-                if ($file && $realPersonId && $fileType && $fileIdNumberAttach && preg_match('/^\d+$/', $realPersonId)) {
-                    $extension = $file->getClientOriginalExtension();
-                    $newFileName = app(\App\Services\AttachmentFilenameGenerator::class)->generate(
-                        $fileType,
-                        $fileIdNumberAttach,
-                        $realPersonId,
-                        $extension
-                    );
-
-                    $folder = 'uploads/' . $fileIdNumberAttach; // يجب أن يكون دائماً مجلد فرعي
-                    if ($folder === 'public' || $folder === 'public/') {
-                        throw new \Exception('خطأ في مسار التخزين: يجب تحديد مجلد فرعي داخل uploads');
-                    }
-                    $path = $file->storeAs($folder, $newFileName, 'public');
-
-                    Attachment::create([
-                        'person_identity_number' => $realPersonId,
-                        'stored_file_name' => $newFileName,
-                        'file_path' => 'storage/' . $path,
-                        'file_type' => $fileType,
-                        'file_size' => $file->getSize(),
-                    ]);
+                if (!$realPersonId || !$fileType || !preg_match('/^\d+$/', (string) $realPersonId)) {
+                    continue;
                 }
+
+                $storedFileName = $attachmentData['stored_file_name'] ?? ($file ? $file->getClientOriginalName() : null);
+                $extension = $file
+                    ? $file->getClientOriginalExtension()
+                    : pathinfo((string) $storedFileName, PATHINFO_EXTENSION);
+                $extension = strtolower($extension);
+                if (!in_array($extension, ['jpg', 'jpeg', 'png', 'pdf', 'heic', 'heif'], true)) {
+                    continue;
+                }
+
+                $newFileName = app(\App\Services\AttachmentFilenameGenerator::class)->generate(
+                    $fileType,
+                    $fileIdNumberAttach,
+                    $realPersonId,
+                    $extension
+                );
+                $folder = 'uploads/' . $fileIdNumberAttach;
+                $finalPath = $folder . '/' . $newFileName;
+                $sourcePath = $file ? $file->getRealPath() : Storage::disk('public')->path($tempPath);
+
+                $fileHash = hash_file('sha1', $sourcePath) ?: null;
+                $deduplicationKey = $realPersonId . '|' . $fileType . '|' . ($fileHash ?? $storedFileName);
+                if (isset($seenAttachments[$deduplicationKey])) {
+                    if ($tempPath) {
+                        $deferredTempCleanup[] = $tempPath;
+                    }
+                    continue;
+                }
+                $seenAttachments[$deduplicationKey] = true;
+
+                $attachmentPayload = [
+                    'person_identity_number' => $realPersonId,
+                    'stored_file_name' => $newFileName,
+                    'file_path' => 'storage/' . $finalPath,
+                    'file_type' => $fileType,
+                    'file_size' => filesize($sourcePath) ?: 0,
+                ];
+                if ($attachmentsHasFileHash) {
+                    $attachmentPayload['file_hash'] = $fileHash;
+                }
+                $attachment = Attachment::create($attachmentPayload);
+
+                $pendingAttachmentStores[] = [
+                    'attachment_id' => $attachment->id,
+                    'file' => $file,
+                    'temp_path' => $tempPath,
+                    'folder' => $folder,
+                    'file_name' => $newFileName,
+                    'final_path' => $finalPath,
+                ];
             }
 
             DB::commit();
+
+            foreach ($pendingAttachmentStores as $pending) {
+                $disk = Storage::disk('public');
+                try {
+                    $stored = $pending['file']
+                        ? $pending['file']->storeAs($pending['folder'], $pending['file_name'], 'public') !== false
+                        : $disk->move($pending['temp_path'], $pending['final_path']);
+                    if (!$stored) {
+                        throw new \RuntimeException('تعذر نقل المرفق إلى مساره النهائي.');
+                    }
+                    if (!$pending['file']) {
+                        $this->deleteEmptyTempDirectory($pending['temp_path']);
+                    }
+                } catch (\Throwable $exception) {
+                    Attachment::whereKey($pending['attachment_id'])->delete();
+                    $disk->delete($pending['final_path']);
+                    Log::error('تعذر نقل مرفق إنشاء سجل بعد الحفظ', ['error' => $exception->getMessage()]);
+                }
+            }
+
+            foreach (array_unique($deferredTempCleanup) as $tempPath) {
+                Storage::disk('public')->delete($tempPath);
+                $this->deleteEmptyTempDirectory($tempPath);
+            }
 
             if ($request->ajax() || $request->wantsJson()) {
                 return response()->json(['success' => true]);
             }
             return redirect()->route('admin.records.management.create')
                 ->with('success', 'تم حفظ السجل بنجاح');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            DB::rollBack();
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'يرجى مراجعة البيانات والمرفقات المدخلة.',
+                    'errors' => $e->errors(),
+                ], 422);
+            }
+            return redirect()->back()->withInput()->withErrors($e->errors());
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('خطأ في تخزين السجل: ' . $e->getMessage());
@@ -574,7 +645,29 @@ class RecordsManagementController extends Controller
         }
     }
 
+    private function isAllowedTempPath(string $tempPath): bool
+    {
+        if (!preg_match('#^temp_uploads/\d{6}/[^/\x5c]+$#', $tempPath)) {
+            return false;
+        }
 
+        $tempRoot = realpath(Storage::disk('public')->path('temp_uploads'));
+        $absolute = realpath(Storage::disk('public')->path($tempPath));
+
+        return $tempRoot !== false
+            && $absolute !== false
+            && is_file($absolute)
+            && str_starts_with($absolute, $tempRoot . DIRECTORY_SEPARATOR);
+    }
+
+    private function deleteEmptyTempDirectory(string $tempPath): void
+    {
+        $disk = Storage::disk('public');
+        $directory = dirname($tempPath);
+        if ($directory !== 'temp_uploads' && $disk->exists($directory) && empty($disk->allFiles($directory))) {
+            $disk->deleteDirectory($directory);
+        }
+    }
 }
 
 

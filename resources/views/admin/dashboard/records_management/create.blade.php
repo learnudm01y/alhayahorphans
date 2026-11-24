@@ -174,9 +174,6 @@
                             enctype="multipart/form-data" autocomplete="off" id="main_form">
                             @csrf
                             <input type="hidden" name="file_id_number" value="{{ $file_id_number ?? '' }}">
-                            <input type="hidden" id="person_identity_number_hidden" name="person_identity_number"
-                                value="">
-                            <input type="hidden" id="file_type_hidden" name="file_type" value="">
                             <!-- تأكد من وجود هذه الحقول المخفية -->
                             <div class="tab-content" id="formTabsContent">
                                 <!-- Basic Info Tab -->
@@ -198,7 +195,7 @@
                                                     class="text-danger">*</span></label>
                                             <input type="text" name="data_id_number" id="data_id_number"
                                                 class="form-control" required inputmode="numeric" pattern="[0-9]*"
-                                                maxlength="9" oninput="this.value = this.value.replace(/[^0-9]/g, '');">>
+                                                maxlength="10" oninput="this.value = this.value.replace(/[^0-9]/g, '');">>
                                         </div>
                                         <div class="col-12">
                                             <div class="row g-3">
@@ -251,11 +248,15 @@
                                         </div>
                                         <div class="col-md-4">
                                             <label class="form-label">رقم الهاتف<span class="text-danger">*</span></label>
-                                            <input type="number" name="data_phone_number" class="form-control">
+                                            <input type="text" name="data_phone_number" class="form-control"
+                                                inputmode="numeric" maxlength="10"
+                                                oninput="this.value = this.value.replace(/[^0-9]/g, '');">
                                         </div>
                                         <div class="col-md-4">
                                             <label class="form-label">رقم هاتف بديل</label>
-                                            <input type="number" name="data_alt_phone_number" class="form-control">
+                                            <input type="text" name="data_alt_phone_number" class="form-control"
+                                                inputmode="numeric" maxlength="10"
+                                                oninput="this.value = this.value.replace(/[^0-9]/g, '');">
                                         </div>
                                         <div class="col-md-4">
                                             <label class="form-label">عدد افراد الاسرة</label>
@@ -377,8 +378,7 @@
                                             </div>
                                         </div>
                                         <div class="col-md-4">
-                                            <label class="form-label">الحالة الوظيفية المعيل <span
-                                                    class="text-danger">*</span></label>
+                                            <label class="form-label">الحالة الوظيفية المعيل</label>
                                             <select name="data_employment_status_breadwinner" class="form-select">
                                                 <option value="">اختر الحالة</option>
                                                 @foreach ($employment_status_breadwinner as $employment_status_item)
@@ -388,8 +388,7 @@
                                             </select>
                                         </div>
                                         <div class="col-md-4">
-                                            <label class="form-label">حالة السكن <span
-                                                    class="text-danger">*</span></label>
+                                            <label class="form-label">حالة السكن</label>
                                             <select name="data_housing_status" class="form-select">
                                                 <option value="">اختر الحالة</option>
                                                 @foreach ($HousingStatus as $HousingStatusItem)
@@ -399,8 +398,7 @@
                                             </select>
                                         </div>
                                         <div class="col-md-4">
-                                            <label class="form-label">نوع السكن الحالي <span
-                                                    class="text-danger">*</span></label>
+                                            <label class="form-label">نوع السكن الحالي</label>
                                             <select name="data_current_housing_type" class="form-select">
                                                 <option value="">اختر الحالة</option>
                                                 @foreach ($TypeOfAccommodation as $TypeOfAccommodationItem)
@@ -427,6 +425,27 @@
                                             <!-- منطقة الحسابات البنكية الديناميكية (مخفية في البداية) -->
                                             <div id="bankAccountsContainer" class="d-none">
                                                 <!-- سيتم توليد النماذج البنكية هنا عبر الجافاسكريبت -->
+                                            </div>
+                                        </div>
+
+                                        <div class="col-12 mt-4">
+                                            <div class="card border-0 shadow-sm">
+                                                <div class="card-body">
+                                                    <label class="form-label fw-bold">وثائق صاحب الملف</label>
+                                                    <p class="text-muted small mb-2">اختر نوع الوثيقة ثم الصورة. النجمة توضح الإلزام في التسجيل العام ولا تمنع الحفظ هنا.</p>
+                                                    <div data-upload-zone="main" class="upload-zone">
+                                                        <select class="form-select mainDocumentTypeSelect">
+                                                            <option value="">اختر نوع الوثيقة</option>
+                                                            @foreach ($documentTypes->where('basic_enabled', 1)->where('description', '!=', 'Unknown') as $documentType)
+                                                                <option value="{{ $documentType->pref }}" {{ $documentType->basic_required ? 'data-required=true' : '' }}>
+                                                                    {{ $documentType->basic_required ? '★ ' : '' }}{{ $documentType->description }}{{ $documentType->basic_required ? ' (إجباري)' : '' }}
+                                                                </option>
+                                                            @endforeach
+                                                        </select>
+                                                        <input type="file" class="mainDocumentFileInput" accept="image/*,.heic,.heif" style="display:none;">
+                                                        <div class="mainDocumentPreview mt-3"></div>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -478,7 +497,7 @@
                                                                         <input type="text"
                                                                             name="family_members[0][person_id]"
                                                                             class="form-control" inputmode="numeric"
-                                                                            pattern="[0-9]*" maxlength="9"
+                                                                            pattern="[0-9]*" maxlength="10"
                                                                             oninput="this.value = this.value.replace(/[^0-9]/g, '');"
                                                                             placeholder="أدخل رقم الهوية للجلب التلقائي">
                                                                     </div>
@@ -559,6 +578,22 @@
                                                                     <label class="form-label">ملاحظة</label>
                                                                     <textarea name="family_members[0][person_note]" class="form-control" rows="3" placeholder="أدخل ملاحظة..." style="resize:vertical;"></textarea>
                                                                 </div>
+                                                                <div class="col-12 mt-3">
+                                                                    <label class="form-label fw-bold">وثائق فرد الأسرة</label>
+                                                                    <p class="text-muted small mb-2">النجمة توضح الإلزام في التسجيل العام ولا تمنع الحفظ هنا.</p>
+                                                                    <div class="upload-zone" data-upload-zone="family_0">
+                                                                        <select class="form-select mainDocumentTypeSelect document-type-select">
+                                                                            <option value="">اختر نوع الوثيقة</option>
+                                                                            @foreach ($documentTypes->where('family_enabled', 1)->where('description', '!=', 'Unknown') as $documentType)
+                                                                                <option value="{{ $documentType->pref }}" {{ $documentType->family_required ? 'data-required=true' : '' }}>
+                                                                                    {{ $documentType->family_required ? '★ ' : '' }}{{ $documentType->description }}{{ $documentType->family_required ? ' (إجباري)' : '' }}
+                                                                                </option>
+                                                                            @endforeach
+                                                                        </select>
+                                                                        <input type="file" class="mainDocumentFileInput document-file-input" accept="image/*,.heic,.heif" style="display:none;">
+                                                                        <div class="mainDocumentPreview mt-3"></div>
+                                                                    </div>
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -587,17 +622,16 @@
                                                         <input type="hidden" name="re_file_id"
                                                             value="{{ $file_id_number ?? '' }}">
                                                         <div class="col-12">
-                                                            <label class="form-label fw-semibold">رقم الهوية <span class="text-danger">*</span></label>
+                                                            <label class="form-label fw-semibold">رقم الهوية</label>
                                                             <div class="input-group" style="max-width:320px;">
                                                                 <input type="text" name="father_id" class="form-control"
-                                                                    inputmode="numeric" pattern="[0-9]*" maxlength="9"
+                                                                    inputmode="numeric" pattern="[0-9]*" maxlength="10"
                                                                     oninput="this.value = this.value.replace(/[^0-9]/g, '');"
                                                                     placeholder="أدخل رقم الهوية للجلب التلقائي">
                                                             </div>
                                                         </div>
                                                         <div class="col-md-3">
-                                                            <label class="form-label">الاسم الأول <span
-                                                                    class="text-danger">*</span></label>
+                                                            <label class="form-label">الاسم الأول</label>
                                                             <input type="text" name="father_first_name"
                                                                 class="form-control">
                                                         </div>
@@ -612,20 +646,17 @@
                                                                 class="form-control">
                                                         </div>
                                                         <div class="col-md-3">
-                                                            <label class="form-label">اسم العائلة <span
-                                                                    class="text-danger">*</span></label>
+                                                            <label class="form-label">اسم العائلة</label>
                                                             <input type="text" name="father_last_name"
                                                                 class="form-control">
                                                         </div>
                                                         <div class="col-md-6">
-                                                            <label class="form-label">تاريخ الوفاة <span
-                                                                    class="text-danger">*</span></label>
+                                                            <label class="form-label">تاريخ الوفاة</label>
                                                             <input type="date" name="father_death_date"
                                                                 class="form-control">
                                                         </div>
                                                         <div class="col-md-6">
-                                                            <label class="form-label">سبب الوفاة <span
-                                                                    class="text-danger">*</span></label>
+                                                            <label class="form-label">سبب الوفاة</label>
                                                             <select name="father_death_reason" class="form-select">
                                                                 <option value="">اختر سبب الوفاة</option>
                                                                 @foreach ($death_reasons as $deathReason)
@@ -633,6 +664,22 @@
                                                                         {{ $deathReason->description }}</option>
                                                                 @endforeach
                                                             </select>
+                                                        </div>
+                                                        <div class="col-12 mt-3">
+                                                            <label class="form-label fw-bold">وثائق الأب المتوفى</label>
+                                                            <p class="text-muted small mb-2">النجمة توضح الإلزام في التسجيل العام ولا تمنع الحفظ هنا.</p>
+                                                            <div data-upload-zone="deceased_father" class="upload-zone">
+                                                                <select class="form-select mainDocumentTypeSelect">
+                                                                    <option value="">اختر نوع الوثيقة</option>
+                                                                    @foreach ($documentTypes->where('deceased_enabled', 1)->where('description', '!=', 'Unknown') as $documentType)
+                                                                        <option value="{{ $documentType->pref }}" {{ $documentType->deceased_required ? 'data-required=true' : '' }}>
+                                                                            {{ $documentType->deceased_required ? '★ ' : '' }}{{ $documentType->description }}{{ $documentType->deceased_required ? ' (إجباري)' : '' }}
+                                                                        </option>
+                                                                    @endforeach
+                                                                </select>
+                                                                <input type="file" class="mainDocumentFileInput" accept="image/*,.heic,.heif" style="display:none;">
+                                                                <div class="mainDocumentPreview mt-3"></div>
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -663,7 +710,7 @@
                                                             <label class="form-label fw-semibold">رقم الهوية</label>
                                                             <div class="input-group" style="max-width:320px;">
                                                                 <input type="text" name="mother_id" class="form-control"
-                                                                    inputmode="numeric" pattern="[0-9]*" maxlength="9"
+                                                                    inputmode="numeric" pattern="[0-9]*" maxlength="10"
                                                                     oninput="this.value = this.value.replace(/[^0-9]/g, '');"
                                                                     placeholder="أدخل رقم الهوية للجلب التلقائي">
                                                             </div>
@@ -703,6 +750,22 @@
                                                                 @endforeach
                                                             </select>
                                                         </div>
+                                                        <div class="col-12 mt-3">
+                                                            <label class="form-label fw-bold">وثائق الأم المتوفية</label>
+                                                            <p class="text-muted small mb-2">النجمة توضح الإلزام في التسجيل العام ولا تمنع الحفظ هنا.</p>
+                                                            <div data-upload-zone="deceased_mother" class="upload-zone">
+                                                                <select class="form-select mainDocumentTypeSelect">
+                                                                    <option value="">اختر نوع الوثيقة</option>
+                                                                    @foreach ($documentTypes->where('deceased_enabled', 1)->where('description', '!=', 'Unknown') as $documentType)
+                                                                        <option value="{{ $documentType->pref }}" {{ $documentType->deceased_required ? 'data-required=true' : '' }}>
+                                                                            {{ $documentType->deceased_required ? '★ ' : '' }}{{ $documentType->description }}{{ $documentType->deceased_required ? ' (إجباري)' : '' }}
+                                                                        </option>
+                                                                    @endforeach
+                                                                </select>
+                                                                <input type="file" class="mainDocumentFileInput" accept="image/*,.heic,.heif" style="display:none;">
+                                                                <div class="mainDocumentPreview mt-3"></div>
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>
@@ -734,7 +797,11 @@
                                 <!-- Attachments Tab -->
                                 <div class="tab-pane fade" id="attachments" role="tabpanel"
                                     aria-labelledby="attachments-tab">
-                                    <div class="row g-3">
+                                    <div class="alert alert-info mb-0">
+                                        <i class="fas fa-paperclip me-2"></i>
+                                        تُرفع الوثائق من منطقة المرفقات داخل بيانات كل شخص: صاحب الملف، أفراد الأسرة، والمتوفين. اختر نوع الوثيقة ثم الصورة، وانتظر اكتمال الرفع قبل الحفظ.
+                                    </div>
+                                    <div class="row g-3" id="legacy_uploader" hidden>
                                         <div class="col-12 mb-3">
                                             <div class="card">
                                                 <div class="card-body">
@@ -905,6 +972,8 @@
 
 
 
+    @include('user.generalRegistration.javascript.cropper')
+    @include('user.generalRegistration.javascript.documentUpload')
     @include('admin.dashboard.records_management.style')
     @include('admin.dashboard.records_management.javascript_create')
     @include('admin.dashboard.records_management.editSectionJavascript.civilRegistryAutofill')

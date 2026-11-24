@@ -635,7 +635,9 @@
     <!--end::App-->
     {{-- our modal --}}
 
-    @include('admin.dashboard.component.cropper')
+    @unless(request()->routeIs('admin.records.management.create'))
+        @include('admin.dashboard.component.cropper')
+    @endunless
     <!--end::Modal - Users Search-->
     <!--end::Modals-->
     <!--begin::Javascript-->
@@ -762,7 +764,9 @@
     </script>
     @include('admin.dashboard.javascript.custom')
     @include('admin.dashboard.javascript.lodaer')
-    @include('admin.dashboard.javascript.cropper')
+    @unless(request()->routeIs('admin.records.management.create'))
+        @include('admin.dashboard.javascript.cropper')
+    @endunless
 
     <!-- Profile Search Suggestions JS -->
     <script src="{{ asset('js/profile-search-suggestions.js') }}?v={{ filemtime(public_path('js/profile-search-suggestions.js')) }}"></script>
@@ -770,6 +774,7 @@
 
     <!--end::Theme Mode Script-->
     @yield('scripts')
+    @stack('scriptsCodeUserRegistration')
     @stack('scriptsCode')
 
     <!--end::Custom Javascript-->

@@ -1,0 +1,1277 @@
+{
+  "kind": "domain-acceptance-cases",
+  "specVersion": "1.0.0",
+  "generatedAt": "2026-11-24",
+  "status": "approved-for-implementation",
+  "language": "ar",
+  "dataClassification": "synthetic-only",
+  "verification": {
+    "mode": "editorial-only",
+    "runtimeStatus": "deferred-by-user",
+    "buildsExecuted": false,
+    "testsExecuted": false,
+    "lintExecuted": false,
+    "jsonOrSchemaValidationExecuted": false,
+    "databaseConnectionsOpened": false,
+    "statement": "هذه حالات قبول مكتوبة ومعتمدة للتنفيذ اللاحق، وليست نتائج تشغيل أو ادعاء نجاح بناء أو اختبارات أو تحقق من المخطط."
+  },
+  "sourceDocuments": [
+    "DesktopApp/spec/domain/catalog.schema.json",
+    "DesktopApp/spec/domain/entity-ownership.json",
+    "DesktopApp/spec/domain/field-catalog.json",
+    "DesktopApp/spec/domain/sync-policy.json",
+    "DesktopApp/src/Alhayah.Contracts/Domain/SyncEnvelope.cs",
+    "DesktopApp/src/Alhayah.Contracts/Domain/FieldPatch.cs",
+    "DesktopApp/src/Alhayah.Contracts/Domain/ConflictClass.cs",
+    "DesktopApp/src/Alhayah.Contracts/Domain/EntityDescriptor.cs",
+    "DesktopApp/src/Alhayah.Contracts/Domain/SyncSourceId.cs",
+    "DesktopApp/src/Alhayah.Contracts/Domain/ClientIdentityMap.cs",
+    "DesktopApp/tests/Alhayah.Contracts.Tests/SyncEnvelopeSerializationTests.cs",
+    "DesktopApp/tests/Alhayah.Contracts.Tests/ConflictClassifierTests.cs",
+    "DesktopApp/tests/Alhayah.Contracts.Tests/SyncSourceIdTests.cs",
+    "DesktopApp/tests/Alhayah.Contracts.Tests/ClientIdentityMapTests.cs",
+    "DesktopApp/tests/Alhayah.Contracts.Tests/SyncPolicyTests.cs"
+  ],
+  "editorialReview": {
+    "result": "consistent-with-approved-domain-model",
+    "inputModifications": [],
+    "decisions": [
+      {
+        "id": "D-OWNERSHIP",
+        "decision": "Laravel هو مصدر الحقيقة للتسجيلات والكفالات والمرفقات، وLocal Server هو مصدر الحقيقة للاستحقاقات والصرفيات والقسائم، وDesktop يملك الجلسات والإعدادات والطوابير والمؤشرات وحالات التعارض فقط.",
+        "evidence": [
+          "entity-ownership.json#/ownershipRules",
+          "sync-policy.json#/catalog/scope"
+        ]
+      },
+      {
+        "id": "D-IDENTITY",
+        "decision": "ClientUuid يُنشأ قبل أول حفظ محلي ولا يتغير، وCanonicalId معتم يصدر عن مالك الكيان ولا يستبدل ClientUuid؛ إعادة تعيين المعرف الرسمي أو مشاركته بين هويتين عميلتين مرفوضة.",
+        "evidence": [
+          "sync-policy.json#/contract/clientUuid",
+          "sync-policy.json#/clientIdentity",
+          "ClientIdentityMap.cs"
+        ]
+      },
+      {
+        "id": "D-CONFLICTS",
+        "decision": "الدمج ثلاثي على مستوى الحقل، والتعديلات غير المتداخلة آمنة، ولا يُستخدم last-write-wins؛ الهوية والمال والحالة والحذف والمراجع المحذوفة أو غير المحلولة تُحجز وفق ConflictClass وقواعد الأولوية.",
+        "evidence": [
+          "sync-policy.json#/fields",
+          "sync-policy.json#/merge",
+          "ConflictClass.cs"
+        ]
+      },
+      {
+        "id": "D-LIFECYCLE",
+        "decision": "الحذف ينتقل بعملية Delete وTombstone، مع الاحتفاظ بالتاريخ المرجعي ومنع الحذف الفيزيائي المباشر عبر المزامنة؛ الحذف مقابل تحديث متزامن تعارض حرج.",
+        "evidence": [
+          "entity-ownership.json#/entities",
+          "sync-policy.json#/contract/tombstone",
+          "sync-policy.json#/tombstones"
+        ]
+      },
+      {
+        "id": "D-SOURCES",
+        "decision": "SourceId ثابت ومستقل عن URL والشهادة؛ تغيير النقل يحفظ outbox والمؤشرات، أما تغيير هوية المصدر فيوقف الإرسال ويفرض مطابقة كاملة مع حفظ العمليات وOperationId الأصلية.",
+        "evidence": [
+          "sync-policy.json#/sources",
+          "sync-policy.json#/reconciliation",
+          "SyncSourceId.cs"
+        ]
+      },
+      {
+        "id": "D-OFFLINE-AUTH",
+        "decision": "العمل Offline يتطلب حساباً محلياً وبيان صلاحيات موقعاً وصالحاً للجهاز والمصدر؛ لا توسيع محلي للصلاحيات، وكل عملية مدققة، وتُعاد مصادقة العمليات المعلقة قبل قبولها عند الاتصال.",
+        "evidence": [
+          "sync-policy.json#/authentication/offlineAccount",
+          "sync-policy.json#/offlineAuthorization"
+        ]
+      },
+      {
+        "id": "D-NULLABILITY",
+        "decision": "قيم nullable:null في قاموس الحقول تعني أن الاستقراء الساكن لم يحسم القابلية للقيمة الفارغة وأن introspection للبيانات الوصفية إلزامي قبل التنفيذ؛ ليست حقلاً مجهولاً أو placeholder.",
+        "evidence": [
+          "catalog.schema.json#/$defs/field/properties/nullable",
+          "field-catalog.json#/conventions/nullability"
+        ]
+      }
+    ]
+  },
+  "approvalGate": {
+    "id": "GATE-T-001-DATA-MODEL",
+    "status": "approved",
+    "basis": "explicit-user-command-after-plan-review",
+    "command": "ابدأ في تنفيذ التطبيق على مراحل متعددة في آن واحد",
+    "additionalCommandScope": "كتابة كود جميع المراحل",
+    "approvedArtifacts": [
+      "DesktopApp/spec/domain/entity-ownership.json",
+      "DesktopApp/spec/domain/field-catalog.json",
+      "DesktopApp/spec/domain/sync-policy.json",
+      "DesktopApp/src/Alhayah.Contracts/Domain"
+    ],
+    "decision": "اعتماد نموذج البيانات والسياسة المعروضين والمضي في التنفيذ على مراحل متوازية دون طلب موافقة إضافية.",
+    "releaseAuthority": "parent-session-after-T-011-completion",
+    "unlockedTasks": [
+      "T-012",
+      "T-017",
+      "T-022"
+    ],
+    "executionVerificationApprovedByThisGate": false
+  },
+  "conventions": {
+    "identifierNamespace": "كل UUID ومعرف ورقم ملف واسم وقيمة اتصال في هذا الملف اصطناعي ومخصص للاختبار فقط.",
+    "canonicalNullMeaning": "canonicalId:null أو targetCanonicalId:null يمثل حالة عدم حصول الكيان على معرف رسمي بعد، ولا يمثل قيمة ناقصة في المواصفة.",
+    "conflictClasses": "القيم المسموح بها هي ConflictClass المعلنة في العقد؛ None وLocalOnly وEquivalent نتائج غير محجوزة، أما بقية النتائج فتتطلب الإجراء الموضح في الحالة.",
+    "steps": "الخطوات إجراءات قبول يجب تنفيذها في مراحل الاختبار اللاحقة، ولم تُنفذ أثناء كتابة هذا الملف."
+  },
+  "coverageMatrix": [
+    {
+      "requirement": "offline-create",
+      "caseIds": [
+        "AC-OFF-CREATE-001",
+        "AC-REF-UNRESOLVED-001"
+      ]
+    },
+    {
+      "requirement": "offline-update",
+      "caseIds": [
+        "AC-OFF-UPDATE-001"
+      ]
+    },
+    {
+      "requirement": "offline-delete",
+      "caseIds": [
+        "AC-OFF-DELETE-001"
+      ]
+    },
+    {
+      "requirement": "identity-conflict",
+      "caseIds": [
+        "AC-CONFLICT-IDENTITY-001",
+        "AC-SOURCE-IDENTITY-001"
+      ]
+    },
+    {
+      "requirement": "financial-conflict",
+      "caseIds": [
+        "AC-CONFLICT-FINANCIAL-001"
+      ]
+    },
+    {
+      "requirement": "status-conflict",
+      "caseIds": [
+        "AC-CONFLICT-STATUS-001"
+      ]
+    },
+    {
+      "requirement": "network-outage",
+      "caseIds": [
+        "AC-NET-OUTAGE-001"
+      ]
+    },
+    {
+      "requirement": "sync-source-change",
+      "caseIds": [
+        "AC-SOURCE-TRANSPORT-001",
+        "AC-SOURCE-IDENTITY-001"
+      ]
+    },
+    {
+      "requirement": "reconnection",
+      "caseIds": [
+        "AC-NET-RECONNECT-001",
+        "AC-REF-UNRESOLVED-001"
+      ]
+    },
+    {
+      "requirement": "delete-against-update",
+      "caseIds": [
+        "AC-CONFLICT-DELETE-UPDATE-001"
+      ]
+    },
+    {
+      "requirement": "deleted-reference",
+      "caseIds": [
+        "AC-REF-DELETED-001"
+      ]
+    }
+  ],
+  "cases": [
+    {
+      "id": "AC-OFF-CREATE-001",
+      "title": "إنشاء استحقاق مساعدة Offline مع هوية عميل مستقرة",
+      "category": "offline-create",
+      "priority": "critical",
+      "entity": {
+        "id": "local.aid_entitlements",
+        "owner": "Local Server",
+        "sourceOfTruth": "SQLite on Windows Server via ASP.NET Core Local API",
+        "channel": "local-api"
+      },
+      "relatedEntities": [
+        "desktop.pending_local_operations",
+        "local.audit_events",
+        "laravel.data",
+        "local.aid_cycles",
+        "local.aid_categories",
+        "local.donor_organizations"
+      ],
+      "policyRefs": [
+        "sync-policy.json#/clientIdentity/offlineCreate",
+        "sync-policy.json#/offlineAuthorization/permissionCheck",
+        "sync-policy.json#/offlineAuthorization/audit",
+        "entity-ownership.json#/ownershipRules/localDatabaseAccess"
+      ],
+      "contractRefs": [
+        "SyncEnvelope.OperationId",
+        "SyncEnvelope.BaseVersion",
+        "EntityDescriptor.ClientUuid",
+        "ClientIdentityMap.AddPending"
+      ],
+      "conflictRule": {
+        "class": "None",
+        "policyPath": "sync-policy.json#/clientIdentity/offlineCreate",
+        "classificationBasis": "إنشاء جديد دون نسخة أساس أو تعديل بعيد متزامن؛ يبقى الإرسال معلقاً حتى عودة Local Server.",
+        "fieldNames": []
+      },
+      "syntheticData": {
+        "connectivity": "offline",
+        "sourceId": "local:main-office-synthetic",
+        "deviceId": "device-synthetic-001",
+        "offlineUserId": "user-synthetic-001",
+        "permission": "aid.entitlements.create",
+        "manifestVersion": "manifest-synthetic-007",
+        "operationId": "10000000-0000-4000-8000-000000000001",
+        "operationType": "Create",
+        "clientUuid": "10000000-0000-4000-8000-000000000002",
+        "canonicalId": null,
+        "baseVersion": null,
+        "rowVersion": null,
+        "occurredAtUtc": "2026-11-24T09:00:00Z",
+        "payload": {
+          "family_file_id_number": 900001,
+          "aid_cycle_id": "10000000-0000-4000-8000-000000000003",
+          "aid_category_id": "10000000-0000-4000-8000-000000000004",
+          "donor_organization_id": "10000000-0000-4000-8000-000000000005",
+          "amount": "125.50",
+          "quantity": "1.00",
+          "currency_code": "ILS",
+          "status": "eligible",
+          "eligible_at": "2026-11-24T09:00:00Z",
+          "notes": "ملاحظة اصطناعية لحالة قبول الإنشاء دون اتصال"
+        },
+        "resolvedReferences": [
+          {
+            "fieldName": "family_file_id_number",
+            "targetEntityType": "laravel.data",
+            "targetCanonicalId": "900001",
+            "isDeleted": false
+          },
+          {
+            "fieldName": "aid_cycle_id",
+            "targetEntityType": "local.aid_cycles",
+            "targetCanonicalId": "10000000-0000-4000-8000-000000000003",
+            "isDeleted": false
+          },
+          {
+            "fieldName": "aid_category_id",
+            "targetEntityType": "local.aid_categories",
+            "targetCanonicalId": "10000000-0000-4000-8000-000000000004",
+            "isDeleted": false
+          },
+          {
+            "fieldName": "donor_organization_id",
+            "targetEntityType": "local.donor_organizations",
+            "targetCanonicalId": "10000000-0000-4000-8000-000000000005",
+            "isDeleted": false
+          }
+        ]
+      },
+      "steps": [
+        "افصل الشبكة وسجل الدخول بحساب Offline اصطناعي يملك الصلاحية المحددة في بيان موقع وصالح للجهاز والمصدر.",
+        "احفظ الاستحقاق الجديد؛ يجب توليد ClientUuid وتثبيته قبل أول حفظ، وتوليد OperationId واحد للعملية.",
+        "تحقق من وجود العملية في desktop.pending_local_operations بالحمولة نفسها وBaseVersion وCanonicalId فارغين لأن الإنشاء لم يصل إلى المالك.",
+        "حاول تشغيل دورة المزامنة أثناء الانقطاع، ثم أعد تشغيل واجهة WPF وخدمة Windows دون تغيير العملية."
+      ],
+      "expected": {
+        "conflictClass": "None",
+        "localProjectionPersisted": true,
+        "pendingOperationPersisted": true,
+        "pendingOperationStatus": "pending",
+        "operationIdUnchangedAfterRestart": true,
+        "clientUuidUnchangedAfterRestart": true,
+        "submissionHeldWhileOffline": true,
+        "canonicalIdAssignedLocally": false,
+        "auditRecorded": true,
+        "directNetworkSqliteAccess": false,
+        "businessDataLoss": false
+      }
+    },
+    {
+      "id": "AC-OFF-UPDATE-001",
+      "title": "تعديل ملف أسرة Offline ودمجه عندما لا يتغير الحقل بعيداً",
+      "category": "offline-update",
+      "priority": "critical",
+      "entity": {
+        "id": "laravel.data",
+        "owner": "Laravel",
+        "sourceOfTruth": "Laravel main database via Desktop Sync API",
+        "channel": "laravel-sync"
+      },
+      "relatedEntities": [
+        "desktop.pending_laravel_operations",
+        "desktop.cached_laravel_records",
+        "desktop.sync_checkpoints"
+      ],
+      "policyRefs": [
+        "sync-policy.json#/contract/baseVersion",
+        "sync-policy.json#/fields/defaultCriticality",
+        "sync-policy.json#/merge/rules",
+        "sync-policy.json#/contract/operationId/retryBehavior"
+      ],
+      "contractRefs": [
+        "FieldPatch.BaseValue",
+        "FieldPatch.LocalValue",
+        "FieldPatch.RemoteValue",
+        "ConflictClassifier.Classify"
+      ],
+      "conflictRule": {
+        "class": "LocalOnly",
+        "policyPath": "sync-policy.json#/merge/rules/0",
+        "classificationBasis": "الحقل Critical افتراضياً، لكن القيمة المحلية وحدها تختلف عن Base بينما Remote يساوي Base، لذلك يطبق التعديل دون مراجعة.",
+        "fieldNames": [
+          "data_family_name"
+        ],
+        "fieldCriticality": "Critical"
+      },
+      "syntheticData": {
+        "connectivityAtEdit": "offline",
+        "sourceId": "laravel:production-synthetic",
+        "deviceId": "device-synthetic-002",
+        "operationId": "20000000-0000-4000-8000-000000000001",
+        "operationType": "Update",
+        "clientUuid": "20000000-0000-4000-8000-000000000002",
+        "canonicalId": "900002",
+        "baseVersion": 41,
+        "rowVersion": "row-synthetic-41",
+        "cursor": "cursor-synthetic-41",
+        "occurredAtUtc": "2026-11-24T09:05:00Z",
+        "patch": {
+          "fieldName": "data_family_name",
+          "baseValue": "اسم-قاعدة-اصطناعي",
+          "localValue": "اسم-معدل-اصطناعي",
+          "remoteValue": "اسم-قاعدة-اصطناعي",
+          "criticality": "Critical"
+        }
+      },
+      "steps": [
+        "ابدأ من نسخة مخزنة BaseVersion=41 وعدّل data_family_name أثناء الانقطاع.",
+        "احفظ Patch يحمل BaseValue وLocalValue مع OperationId وClientUuid والمعرف الرسمي الحالي.",
+        "أعد الاتصال واجلب النسخة البعيدة التي بقي فيها الحقل مساوياً لـBaseValue.",
+        "نفذ التصنيف الثلاثي ثم أرسل العملية بالمعرف الأصلي إذا كانت الصلاحيات ما زالت صالحة."
+      ],
+      "expected": {
+        "conflictClass": "LocalOnly",
+        "mergedValue": "اسم-معدل-اصطناعي",
+        "heldForReview": false,
+        "lastWriteWinsUsed": false,
+        "operationIdUnchanged": true,
+        "clientUuidUnchanged": true,
+        "canonicalIdAfterSync": "900002",
+        "pendingOperationAcknowledgedAfterOwnerCommit": true,
+        "cursorAdvancedOnlyAfterDurableLocalCommit": true
+      }
+    },
+    {
+      "id": "AC-OFF-DELETE-001",
+      "title": "حذف عملية صرف Offline باستخدام Tombstone وحذف ناعم",
+      "category": "offline-delete",
+      "priority": "critical",
+      "entity": {
+        "id": "local.disbursements",
+        "owner": "Local Server",
+        "sourceOfTruth": "SQLite on Windows Server via ASP.NET Core Local API",
+        "channel": "local-api"
+      },
+      "relatedEntities": [
+        "desktop.pending_local_operations",
+        "local.aid_entitlements",
+        "local.audit_events"
+      ],
+      "policyRefs": [
+        "sync-policy.json#/contract/tombstone",
+        "sync-policy.json#/tombstones/transport",
+        "sync-policy.json#/tombstones/hardDeleteWithoutTombstoneAllowed",
+        "entity-ownership.json (entity id=local.disbursements; deletion)"
+      ],
+      "contractRefs": [
+        "SyncOperationType.Delete",
+        "SyncEnvelope.Tombstone",
+        "Tombstone.DeletedAtUtc",
+        "Tombstone.DeletedByDeviceId"
+      ],
+      "conflictRule": {
+        "class": "None",
+        "policyPath": "sync-policy.json#/contract/tombstone",
+        "classificationBasis": "لا يوجد تحديث بعيد متزامن أو مرجع محذوف؛ الحذف الناعم المستقل لا ينتج DeleteAgainstUpdate ويلتزم بنقل Tombstone.",
+        "fieldNames": [
+          "deleted_at"
+        ],
+        "fieldCriticality": "Critical"
+      },
+      "syntheticData": {
+        "connectivity": "offline",
+        "sourceId": "local:main-office-synthetic",
+        "deviceId": "device-synthetic-003",
+        "operationId": "30000000-0000-4000-8000-000000000001",
+        "clientUuid": "30000000-0000-4000-8000-000000000002",
+        "canonicalId": "disbursement-synthetic-003",
+        "baseVersion": 12,
+        "rowVersion": "row-synthetic-12",
+        "occurredAtUtc": "2026-11-24T09:10:00Z",
+        "operationType": "Delete",
+        "tombstone": {
+          "deletedAtUtc": "2026-11-24T09:10:00Z",
+          "deletedByDeviceId": "device-synthetic-003",
+          "reason": "synthetic-offline-cancellation"
+        },
+        "remoteHasConcurrentUpdate": false,
+        "entitlementReference": {
+          "targetCanonicalId": "entitlement-synthetic-003",
+          "isDeleted": false
+        }
+      },
+      "steps": [
+        "احذف عملية الصرف من الواجهة أثناء الانقطاع بعد التحقق من صلاحية الحذف المحلية.",
+        "احفظ عملية Delete مع Tombstone وBaseVersion وRowVersion بدلاً من حذف صف الجهاز فقط.",
+        "أعد الاتصال مع بقاء النسخة البعيدة دون تعديل متزامن، ثم أرسل العملية الأصلية.",
+        "استلم تأكيد المالك والتغيير الراجع واحتفظ بسجل الحذف والتدقيق."
+      ],
+      "expected": {
+        "conflictClass": "None",
+        "tombstonePreserved": true,
+        "deletedAtPropagated": "2026-11-24T09:10:00Z",
+        "deletedByDeviceIdPropagated": "device-synthetic-003",
+        "physicalDeletePropagated": false,
+        "referentialHistoryRetained": true,
+        "heldForReview": false,
+        "operationIdUnchanged": true,
+        "auditRecorded": true
+      }
+    },
+    {
+      "id": "AC-CONFLICT-IDENTITY-001",
+      "title": "رفض مشاركة CanonicalId بين ClientUuid مختلفين",
+      "category": "identity-conflict",
+      "priority": "critical",
+      "entity": {
+        "id": "laravel.data",
+        "owner": "Laravel",
+        "sourceOfTruth": "Laravel main database via Desktop Sync API",
+        "channel": "laravel-sync"
+      },
+      "relatedEntities": [
+        "desktop.conflict_cases",
+        "desktop.pending_laravel_operations"
+      ],
+      "policyRefs": [
+        "sync-policy.json#/clientIdentity/canonicalIdUniqueness",
+        "sync-policy.json#/clientIdentity/canonicalReuseByDifferentClientUuid",
+        "sync-policy.json#/clientIdentity/canonicalReassignment",
+        "sync-policy.json#/fields/criticalFieldNames"
+      ],
+      "contractRefs": [
+        "ClientIdentityMap.Resolve",
+        "ClientIdentityMap.AddPending",
+        "EntityDescriptor.ClientUuid",
+        "EntityDescriptor.CanonicalId"
+      ],
+      "conflictRule": {
+        "class": "CriticalField",
+        "policyPath": "sync-policy.json#/clientIdentity/canonicalReuseByDifferentClientUuid",
+        "classificationBasis": "client_uuid وcanonical_id حقول هوية حرجة؛ كشف خريطة الهوية للتكرار يمنع الحل ويحفظ الهويتين للمراجعة.",
+        "fieldNames": [
+          "client_uuid",
+          "canonical_id"
+        ],
+        "fieldCriticality": "Critical"
+      },
+      "syntheticData": {
+        "entityType": "laravel.data",
+        "existingMapping": {
+          "clientUuid": "40000000-0000-4000-8000-000000000001",
+          "canonicalId": "900004"
+        },
+        "incomingMapping": {
+          "clientUuid": "40000000-0000-4000-8000-000000000002",
+          "canonicalId": "900004",
+          "operationId": "40000000-0000-4000-8000-000000000003"
+        },
+        "sourceId": "laravel:production-synthetic",
+        "deviceId": "device-synthetic-004"
+      },
+      "steps": [
+        "سجل هويتين عميلتين مختلفتين لكيان laravel.data في ClientIdentityMap.",
+        "حل الهوية الأولى إلى CanonicalId=900004.",
+        "حاول حل الهوية الثانية إلى CanonicalId نفسه.",
+        "احجز العملية الثانية مع الحمولة والهوية الأصليتين بدلاً دمج السجلين أو تبديل ClientUuid."
+      ],
+      "expected": {
+        "conflictClass": "CriticalField",
+        "resolutionRejected": true,
+        "heldForReview": true,
+        "existingMapping": {
+          "clientUuid": "40000000-0000-4000-8000-000000000001",
+          "canonicalId": "900004"
+        },
+        "incomingClientUuidPreserved": "40000000-0000-4000-8000-000000000002",
+        "incomingOperationIdPreserved": "40000000-0000-4000-8000-000000000003",
+        "automaticRecordMerge": false,
+        "canonicalReassignment": false,
+        "serverSubmissionAllowedBeforeReview": false
+      }
+    },
+    {
+      "id": "AC-CONFLICT-FINANCIAL-001",
+      "title": "تعارض مبلغ الصرف والعملة بين جهازين",
+      "category": "financial-conflict",
+      "priority": "critical",
+      "entity": {
+        "id": "local.disbursements",
+        "owner": "Local Server",
+        "sourceOfTruth": "SQLite on Windows Server via ASP.NET Core Local API",
+        "channel": "local-api"
+      },
+      "relatedEntities": [
+        "desktop.conflict_cases",
+        "desktop.pending_local_operations",
+        "local.audit_events"
+      ],
+      "policyRefs": [
+        "sync-policy.json#/fields/criticalFieldNames",
+        "sync-policy.json#/fields/defaultCriticality",
+        "sync-policy.json#/merge/rules/4",
+        "sync-policy.json#/merge/rules/6"
+      ],
+      "contractRefs": [
+        "FieldCriticality.Critical",
+        "ConflictClass.CriticalField",
+        "ConflictClassifier.Classify"
+      ],
+      "conflictRule": {
+        "class": "CriticalField",
+        "policyPath": "sync-policy.json#/merge/precedence/4",
+        "classificationBasis": "amount مصرح بأنه حرج وcurrency_code حرج بالقاعدة الافتراضية؛ تغير كل منهما محلياً وبعيداً إلى قيم مختلفة.",
+        "fieldNames": [
+          "amount",
+          "currency_code"
+        ],
+        "fieldCriticality": "Critical"
+      },
+      "syntheticData": {
+        "sourceId": "local:main-office-synthetic",
+        "deviceId": "device-synthetic-005",
+        "operationId": "50000000-0000-4000-8000-000000000001",
+        "clientUuid": "50000000-0000-4000-8000-000000000002",
+        "canonicalId": "disbursement-synthetic-005",
+        "baseVersion": 20,
+        "rowVersion": "row-synthetic-20",
+        "occurredAtUtc": "2026-11-24T09:15:00Z",
+        "patches": [
+          {
+            "fieldName": "amount",
+            "baseValue": "100.00",
+            "localValue": "125.00",
+            "remoteValue": "150.00",
+            "criticality": "Critical"
+          },
+          {
+            "fieldName": "currency_code",
+            "baseValue": "ILS",
+            "localValue": "JOD",
+            "remoteValue": "USD",
+            "criticality": "Critical"
+          }
+        ]
+      },
+      "steps": [
+        "حضر نسخة أساس مبلغها 100.00 ILS وعدّل المبلغ محلياً إلى 125.00 أثناء الانقطاع.",
+        "اجلب نسخة بعيدة تغير فيها المبلغ إلى 150.00 والعملة إلى USD على Base نفسه.",
+        "صنف كل Patch واجمع النتيجة على مستوى SyncEnvelope.",
+        "احفظ القيم الثلاث والحقول المتعارضة وكل بيانات العملية في حالة مراجعة."
+      ],
+      "expected": {
+        "conflictClass": "CriticalField",
+        "heldForReview": true,
+        "automaticAmountSelected": false,
+        "automaticCurrencySelected": false,
+        "lastWriteWinsUsed": false,
+        "baseLocalRemotePreserved": true,
+        "operationMetadataPreserved": true,
+        "localAndRemotePayloadsPreserved": true,
+        "pendingOperationDiscarded": false
+      }
+    },
+    {
+      "id": "AC-CONFLICT-STATUS-001",
+      "title": "تعارض حالة الصرف بين التسليم والإلغاء",
+      "category": "status-conflict",
+      "priority": "critical",
+      "entity": {
+        "id": "local.disbursements",
+        "owner": "Local Server",
+        "sourceOfTruth": "SQLite on Windows Server via ASP.NET Core Local API",
+        "channel": "local-api"
+      },
+      "relatedEntities": [
+        "desktop.conflict_cases",
+        "desktop.pending_local_operations",
+        "local.audit_events"
+      ],
+      "policyRefs": [
+        "sync-policy.json#/fields/criticalFieldNames",
+        "sync-policy.json#/fields/classes/Critical",
+        "sync-policy.json#/merge/reviewOutcomes",
+        "sync-policy.json#/merge/rules/4"
+      ],
+      "contractRefs": [
+        "FieldCriticality.Critical",
+        "ConflictClass.CriticalField",
+        "ConflictClassifier.Classify"
+      ],
+      "conflictRule": {
+        "class": "CriticalField",
+        "policyPath": "sync-policy.json#/fields/classes/Critical",
+        "classificationBasis": "status حقل Workflow حرج؛ delivered وcancelled تغييران مختلفان على Base واحد ولا يجوز اختيار أحدهما بالتوقيت.",
+        "fieldNames": [
+          "status"
+        ],
+        "fieldCriticality": "Critical"
+      },
+      "syntheticData": {
+        "sourceId": "local:main-office-synthetic",
+        "deviceId": "device-synthetic-006",
+        "operationId": "60000000-0000-4000-8000-000000000001",
+        "clientUuid": "60000000-0000-4000-8000-000000000002",
+        "canonicalId": "disbursement-synthetic-006",
+        "baseVersion": 8,
+        "rowVersion": "row-synthetic-8",
+        "occurredAtUtc": "2026-11-24T09:20:00Z",
+        "patch": {
+          "fieldName": "status",
+          "baseValue": "requested",
+          "localValue": "delivered",
+          "remoteValue": "cancelled",
+          "criticality": "Critical"
+        }
+      },
+      "steps": [
+        "ابدأ من status=requested وسجل delivered محلياً دون اتصال.",
+        "استلم نسخة بعيدة status=cancelled مبنية على الإصدار نفسه.",
+        "صنف التعارض واعرض القيم الثلاث للمراجع المخول.",
+        "امنع أي انتقال حالة آلي قبل قرار المراجعة واربط القرار بالتدقيق."
+      ],
+      "expected": {
+        "conflictClass": "CriticalField",
+        "heldForReview": true,
+        "automaticStatusTransition": false,
+        "allowedResolutionValues": [
+          "requested",
+          "delivered",
+          "cancelled"
+        ],
+        "baseLocalRemotePreserved": true,
+        "lastWriteWinsUsed": false,
+        "reviewDecisionAudited": true
+      }
+    },
+    {
+      "id": "AC-CONFLICT-DELETE-UPDATE-001",
+      "title": "حذف ملف أسرة بالتزامن مع تحديث بعيد",
+      "category": "delete-against-update",
+      "priority": "critical",
+      "entity": {
+        "id": "laravel.data",
+        "owner": "Laravel",
+        "sourceOfTruth": "Laravel main database via Desktop Sync API",
+        "channel": "laravel-sync"
+      },
+      "relatedEntities": [
+        "desktop.conflict_cases",
+        "desktop.pending_laravel_operations",
+        "laravel.sponsorships"
+      ],
+      "policyRefs": [
+        "sync-policy.json#/merge/reviewOutcomes",
+        "sync-policy.json#/merge/rules/5",
+        "sync-policy.json#/contract/tombstone/referentialAction",
+        "sync-policy.json#/tombstones/hardDeleteWithoutTombstoneAllowed"
+      ],
+      "contractRefs": [
+        "SyncOperationType.Delete",
+        "ConflictClass.DeleteAgainstUpdate",
+        "ConflictClassifier.Classify",
+        "SyncEnvelope.Tombstone"
+      ],
+      "conflictRule": {
+        "class": "DeleteAgainstUpdate",
+        "policyPath": "sync-policy.json#/merge/precedence/3",
+        "classificationBasis": "عملية Delete المحلية تواجه RemoteOnly في data_family_name؛ وجود أي تغيير متزامن مع Delete يحجز العملية قبل CriticalField أو ConcurrentField.",
+        "fieldNames": [
+          "data_family_name",
+          "deleted_at"
+        ],
+        "fieldCriticality": "Critical"
+      },
+      "syntheticData": {
+        "sourceId": "laravel:production-synthetic",
+        "deviceId": "device-synthetic-007",
+        "operationId": "70000000-0000-4000-8000-000000000001",
+        "clientUuid": "70000000-0000-4000-8000-000000000002",
+        "canonicalId": "900007",
+        "baseVersion": 31,
+        "rowVersion": "row-synthetic-31",
+        "operationType": "Delete",
+        "occurredAtUtc": "2026-11-24T09:25:00Z",
+        "tombstone": {
+          "deletedAtUtc": "2026-11-24T09:25:00Z",
+          "deletedByDeviceId": "device-synthetic-007",
+          "reason": "synthetic-delete-against-update"
+        },
+        "patch": {
+          "fieldName": "data_family_name",
+          "baseValue": "اسم-قاعدة-اصطناعي",
+          "localValue": "اسم-قاعدة-اصطناعي",
+          "remoteValue": "اسم-بعيد-اصطناعي",
+          "criticality": "Critical"
+        }
+      },
+      "steps": [
+        "احفظ Delete وTombstone محلياً على BaseVersion=31.",
+        "استلم تحديثاً بعيداً لـdata_family_name على Base نفسه.",
+        "صنف SyncEnvelope مع بقاء Tombstone والتحديث البعيد في حالة التعارض.",
+        "امنع الحذف أو إحياء السجل آلياً إلى أن يصدر المراجع قراراً مصرحاً به."
+      ],
+      "expected": {
+        "conflictClass": "DeleteAgainstUpdate",
+        "heldForReview": true,
+        "tombstonePreserved": true,
+        "remoteUpdatePreserved": true,
+        "automaticDeleteApplied": false,
+        "automaticRecordRestoration": false,
+        "hardDeleteWithoutTombstone": false,
+        "operationMetadataPreserved": true
+      }
+    },
+    {
+      "id": "AC-REF-UNRESOLVED-001",
+      "title": "استحقاق محلي يشير إلى كفالة أُنشئت Offline ثم يحل مرجعها",
+      "category": "unresolved-reference-and-reconnection",
+      "priority": "critical",
+      "entity": {
+        "id": "local.aid_entitlements",
+        "owner": "Local Server",
+        "sourceOfTruth": "SQLite on Windows Server via ASP.NET Core Local API",
+        "channel": "local-api"
+      },
+      "relatedEntities": [
+        "laravel.sponsorships",
+        "desktop.pending_laravel_operations",
+        "desktop.pending_local_operations",
+        "desktop.cached_laravel_records"
+      ],
+      "policyRefs": [
+        "sync-policy.json#/clientIdentity/fieldReferences",
+        "sync-policy.json#/clientIdentity/unresolvedSubmission",
+        "sync-policy.json#/clientIdentity/resolution",
+        "sync-policy.json#/clientIdentity/operationIdAfterResolution",
+        "sync-policy.json#/clientIdentity/crossOwnerBehavior"
+      ],
+      "contractRefs": [
+        "EntityReference.TargetClientUuid",
+        "EntityReference.TargetCanonicalId",
+        "ClientIdentityMap.ResolvePendingReferences",
+        "ClientIdentityResolution.PendingUnresolvedReference",
+        "ConflictClass.UnresolvedReference"
+      ],
+      "conflictRule": {
+        "class": "UnresolvedReference",
+        "policyPath": "sync-policy.json#/merge/precedence/2",
+        "classificationBasis": "sponsorship_client_uuid مرجع CrossOwner معروف بـClientUuid فقط؛ غياب TargetCanonicalId يحجز العملية دون إسقاط الرابط.",
+        "fieldNames": [
+          "sponsorship_client_uuid"
+        ],
+        "fieldCriticality": "Reference"
+      },
+      "syntheticData": {
+        "sourceId": "local:main-office-synthetic",
+        "deviceId": "device-synthetic-008",
+        "operationId": "80000000-0000-4000-8000-000000000001",
+        "entitlementClientUuid": "80000000-0000-4000-8000-000000000002",
+        "sponsorshipClientUuid": "80000000-0000-4000-8000-000000000003",
+        "sponsorshipCanonicalIdBeforeResolution": null,
+        "sponsorshipCanonicalIdAfterResolution": "sponsorship-synthetic-008",
+        "reference": {
+          "fieldName": "sponsorship_client_uuid",
+          "targetEntityType": "laravel.sponsorships",
+          "targetClientUuid": "80000000-0000-4000-8000-000000000003",
+          "targetCanonicalId": null,
+          "kind": "Field",
+          "isDeleted": false
+        },
+        "payload": {
+          "family_file_id_number": 900008,
+          "aid_cycle_id": "80000000-0000-4000-8000-000000000004",
+          "aid_category_id": "80000000-0000-4000-8000-000000000005",
+          "donor_organization_id": "80000000-0000-4000-8000-000000000006",
+          "status": "eligible",
+          "amount": "80.00",
+          "currency_code": "ILS"
+        }
+      },
+      "steps": [
+        "أنشئ الكفالة في Laravel Offline واحتفظ بـClientUuid قبل أول حفظ.",
+        "أنشئ الاستحقاق المحلي واجعل sponsorship_client_uuid يشير إلى ClientUuid نفسه دون اختلاق CanonicalId.",
+        "حاول تقييم العملية قبل عودة معرف الكفالة الرسمي؛ يجب أن تبقى PendingUnresolvedReference ولا تُرسل.",
+        "بعد الاتصال استلم CanonicalId من Laravel، وحدث خريطة الهوية وكل العمليات التابعة بالقيمة الرسمية مع الاحتفاظ بـClientUuid.",
+        "أعد تقييم العملية ثم أرسلها إلى Local Server بالـOperationId الأصلي."
+      ],
+      "expected": {
+        "beforeResolution": {
+          "conflictClass": "UnresolvedReference",
+          "identityResolution": "PendingUnresolvedReference",
+          "submissionAllowed": false,
+          "targetClientUuidPreserved": true,
+          "targetCanonicalId": null,
+          "operationDiscarded": false,
+          "operationReordered": false
+        },
+        "afterResolution": {
+          "identityResolution": "Ready",
+          "submissionAllowed": true,
+          "targetClientUuid": "80000000-0000-4000-8000-000000000003",
+          "targetCanonicalId": "sponsorship-synthetic-008",
+          "operationId": "80000000-0000-4000-8000-000000000001",
+          "referenceKind": "Field",
+          "identityLinkLost": false
+        }
+      }
+    },
+    {
+      "id": "AC-REF-DELETED-001",
+      "title": "منع صرف يشير إلى استحقاق محذوف مع أولوية على التعارض المالي",
+      "category": "deleted-reference",
+      "priority": "critical",
+      "entity": {
+        "id": "local.disbursements",
+        "owner": "Local Server",
+        "sourceOfTruth": "SQLite on Windows Server via ASP.NET Core Local API",
+        "channel": "local-api"
+      },
+      "relatedEntities": [
+        "local.aid_entitlements",
+        "desktop.conflict_cases",
+        "desktop.pending_local_operations"
+      ],
+      "policyRefs": [
+        "sync-policy.json#/clientIdentity/deletedReferencedEntity",
+        "sync-policy.json#/tombstones/referencedDeletion",
+        "sync-policy.json#/merge/precedence",
+        "entity-ownership.json (entity id=local.disbursements; references)"
+      ],
+      "contractRefs": [
+        "EntityReference.IsDeleted",
+        "ClientIdentityResolution.BlockedDeletedReference",
+        "ConflictClass.DeletedReference",
+        "ConflictClassifier.Classify"
+      ],
+      "conflictRule": {
+        "class": "DeletedReference",
+        "policyPath": "sync-policy.json#/merge/precedence/1",
+        "classificationBasis": "IsDeleted=true على entitlement_id يسبق CriticalField الخاص بالمبلغ ويمنع الصرف حتى مع معرفة CanonicalId.",
+        "fieldNames": [
+          "entitlement_id",
+          "amount"
+        ],
+        "fieldCriticalities": {
+          "entitlement_id": "Reference",
+          "amount": "Critical"
+        }
+      },
+      "syntheticData": {
+        "sourceId": "local:main-office-synthetic",
+        "deviceId": "device-synthetic-009",
+        "operationId": "90000000-0000-4000-8000-000000000001",
+        "clientUuid": "90000000-0000-4000-8000-000000000002",
+        "canonicalId": "disbursement-synthetic-009",
+        "baseVersion": 14,
+        "rowVersion": "row-synthetic-14",
+        "reference": {
+          "fieldName": "entitlement_id",
+          "targetEntityType": "local.aid_entitlements",
+          "targetClientUuid": "90000000-0000-4000-8000-000000000003",
+          "targetCanonicalId": "entitlement-synthetic-009",
+          "kind": "Field",
+          "isDeleted": true
+        },
+        "amountPatch": {
+          "fieldName": "amount",
+          "baseValue": "50.00",
+          "localValue": "60.00",
+          "remoteValue": "70.00",
+          "criticality": "Critical"
+        }
+      },
+      "steps": [
+        "أنشئ عملية صرف اصطناعية تشير إلى استحقاق CanonicalId معروف.",
+        "استلم Tombstone للاستحقاق وعلم المرجع IsDeleted=true.",
+        "أضف تغييراً مالياً متعارضاً لاختبار أولوية التصنيف.",
+        "صنف العملية واحجزها دون إرسال أو إعادة توجيهها تلقائياً إلى استحقاق آخر."
+      ],
+      "expected": {
+        "conflictClass": "DeletedReference",
+        "identityResolution": "BlockedDeletedReference",
+        "deletedReferencePrecedesCriticalField": true,
+        "submissionAllowed": false,
+        "heldForReview": true,
+        "referenceCanonicalIdPreserved": "entitlement-synthetic-009",
+        "referenceClientUuidPreserved": "90000000-0000-4000-8000-000000000003",
+        "amountPatchPreserved": true,
+        "automaticReferenceReplacement": false
+      }
+    },
+    {
+      "id": "AC-NET-OUTAGE-001",
+      "title": "انقطاع الشبكة أثناء وجود عمليات Laravel وLocal Server معلقة",
+      "category": "network-outage",
+      "priority": "critical",
+      "entity": {
+        "id": "desktop.pending_laravel_operations",
+        "owner": "Desktop",
+        "sourceOfTruth": "Device-local SQLite managed on the same device",
+        "channel": "laravel-sync"
+      },
+      "relatedEntities": [
+        "desktop.pending_local_operations",
+        "desktop.cached_laravel_records",
+        "desktop.sync_checkpoints",
+        "desktop.conflict_cases"
+      ],
+      "policyRefs": [
+        "sync-policy.json#/cursors/batchFailure",
+        "sync-policy.json#/cursors/advance",
+        "sync-policy.json#/contract/operationId/retryBehavior",
+        "sync-policy.json#/offlineAuthorization/effectivePermissions",
+        "entity-ownership.json#/ownershipRules/desktop"
+      ],
+      "contractRefs": [
+        "SyncEnvelope.OperationId",
+        "SyncEnvelope.Cursor",
+        "SyncEnvelope.OccurredAtUtc"
+      ],
+      "conflictRule": {
+        "class": "None",
+        "policyPath": "sync-policy.json#/cursors/batchFailure",
+        "classificationBasis": "فشل النقل ليس تعارض بيانات؛ يحتفظ بالمؤشر السابق وتعاد الدفعة دون إنشاء عملية جديدة أو تقديم Cursor.",
+        "fieldNames": [
+          "status",
+          "attempt_count",
+          "next_retry_at",
+          "last_error"
+        ]
+      },
+      "syntheticData": {
+        "deviceId": "device-synthetic-010",
+        "laravelSourceId": "laravel:production-synthetic",
+        "localSourceId": "local:main-office-synthetic",
+        "durableCursorBeforeOutage": "cursor-synthetic-100",
+        "laravelOperation": {
+          "operationId": "a0000000-0000-4000-8000-000000000001",
+          "entityType": "laravel.data",
+          "clientUuid": "a0000000-0000-4000-8000-000000000002",
+          "operationType": "Update",
+          "status": "pending",
+          "attemptCountBeforeOutage": 1,
+          "payload": {
+            "data_family_name": "اسم-انقطاع-اصطناعي"
+          }
+        },
+        "localOperation": {
+          "operationId": "a0000000-0000-4000-8000-000000000003",
+          "entityType": "local.aid_entitlements",
+          "clientUuid": "a0000000-0000-4000-8000-000000000004",
+          "operationType": "Create",
+          "status": "pending",
+          "payload": {
+            "status": "eligible",
+            "amount": "40.00",
+            "currency_code": "ILS"
+          }
+        },
+        "failureAtUtc": "2026-11-24T09:30:00Z",
+        "nextRetryAtUtc": "2026-11-24T09:31:00Z"
+      },
+      "steps": [
+        "احفظ عمليتي Laravel وLocal Server وكل مؤشراتهما في معاملات محلية دائمة قبل الانقطاع.",
+        "افصل الشبكة أثناء محاولة الإرسال واسمح لخدمة Windows بتسجيل الفشل والمحاولة لاحقاً.",
+        "أعد تشغيل WPF وخدمة المزامنة قبل عودة الشبكة.",
+        "افتح السجلات المخزنة وتأكد من بقاء العمليتين والمؤشر والطوابع الأصلية دون تغيير."
+      ],
+      "expected": {
+        "conflictClass": "None",
+        "laravelOperationRetained": true,
+        "localOperationRetained": true,
+        "operationIdsUnchanged": true,
+        "clientUuidsUnchanged": true,
+        "durableCursorAfterFailure": "cursor-synthetic-100",
+        "cursorAdvancedOnFailedBatch": false,
+        "nextRetryAtRecorded": "2026-11-24T09:31:00Z",
+        "cachedRecordsAvailableOffline": true,
+        "newConflictCreatedForTransportFailure": false,
+        "occurredAtUtcRewritten": false,
+        "businessDataLoss": false
+      }
+    },
+    {
+      "id": "AC-SOURCE-TRANSPORT-001",
+      "title": "تغيير عنوان المزامنة وشهادتها دون تغيير SourceId",
+      "category": "sync-source-transport-change",
+      "priority": "critical",
+      "entity": {
+        "id": "desktop.device_settings",
+        "owner": "Desktop",
+        "sourceOfTruth": "Device-local settings and Windows-protected transport secrets",
+        "channel": "configuration"
+      },
+      "relatedEntities": [
+        "desktop.pending_laravel_operations",
+        "desktop.sync_checkpoints",
+        "desktop.secure_sessions"
+      ],
+      "policyRefs": [
+        "sync-policy.json#/sources/urlParticipation",
+        "sync-policy.json#/sources/certificateParticipation",
+        "sync-policy.json#/sources/addressOrCertificateChange",
+        "sync-policy.json#/sources/checkpointKey",
+        "sync-policy.json#/sources/cursorReuseAcrossSourceIds"
+      ],
+      "contractRefs": [
+        "SyncSourceId",
+        "ConflictClassifier.ClassifySource"
+      ],
+      "conflictRule": {
+        "class": "None",
+        "policyPath": "sync-policy.json#/sources/addressOrCertificateChange",
+        "classificationBasis": "expected SourceId وactual SourceId متساويان؛ العنوان والشهادة بيانات نقل قابلة للاستبدال وليستا هوية مصدر.",
+        "fieldNames": [
+          "laravel_sync_base_url"
+        ]
+      },
+      "syntheticData": {
+        "deviceId": "device-synthetic-011",
+        "sourceIdBefore": "laravel:production-synthetic",
+        "sourceIdAfter": "LARAVEL:PRODUCTION-SYNTHETIC",
+        "normalizedSourceId": "laravel:production-synthetic",
+        "oldEndpoint": "https://sync-old.example.test/api/desktop-sync",
+        "newEndpoint": "https://sync-new.example.test/api/desktop-sync",
+        "oldCertificateThumbprint": "SYNTHETIC-OLD-CERTIFICATE",
+        "newCertificateThumbprint": "SYNTHETIC-NEW-CERTIFICATE",
+        "durableCursor": "cursor-synthetic-111",
+        "pendingOperationId": "b0000000-0000-4000-8000-000000000001"
+      },
+      "steps": [
+        "سجل عنواناً وشهادة جديدين في إعدادات النقل مع إبقاء معرف التثبيت الصادر عن المالك.",
+        "أنشئ SyncSourceId من القيمة الجديدة وقارنه بالمصدر المتوقع بعد التطبيع.",
+        "شغل فحص الصحة والتوافق على العنوان الجديد دون حذف أي عملية معلقة.",
+        "استأنف المزامنة بالمؤشر المرتبط بالـSourceId الثابت بعد نجاح المصادقة."
+      ],
+      "expected": {
+        "conflictClass": "None",
+        "sourceIdentityChanged": false,
+        "fullReconciliationRequired": false,
+        "outboxPreserved": true,
+        "pendingOperationId": "b0000000-0000-4000-8000-000000000001",
+        "checkpointPreserved": "cursor-synthetic-111",
+        "credentialRotationRequiresOutboxDeletion": false,
+        "urlAcceptedAsSourceId": false
+      }
+    },
+    {
+      "id": "AC-SOURCE-IDENTITY-001",
+      "title": "تغيير SourceId يفرض مطابقة كاملة قبل الإرسال",
+      "category": "sync-source-identity-change",
+      "priority": "critical",
+      "entity": {
+        "id": "desktop.sync_checkpoints",
+        "owner": "Desktop",
+        "sourceOfTruth": "Device-local checkpoints keyed by stable SourceId and channel",
+        "channel": "laravel-sync"
+      },
+      "relatedEntities": [
+        "desktop.pending_laravel_operations",
+        "desktop.cached_laravel_records",
+        "desktop.conflict_cases",
+        "desktop.secure_sessions"
+      ],
+      "policyRefs": [
+        "sync-policy.json#/sources/sourceIdentityChange",
+        "sync-policy.json#/sources/identityChangeSteps",
+        "sync-policy.json#/sources/pendingOperationsOnIdentityChange",
+        "sync-policy.json#/reconciliation",
+        "sync-policy.json#/sources/cursorReuseAcrossSourceIds"
+      ],
+      "contractRefs": [
+        "SyncSourceId",
+        "ConflictClass.SourceIdentityMismatch",
+        "ConflictClassifier.ClassifySource",
+        "ClientIdentityMap.Resolve"
+      ],
+      "conflictRule": {
+        "class": "SourceIdentityMismatch",
+        "policyPath": "sync-policy.json#/merge/precedence/0",
+        "classificationBasis": "actual SourceId يختلف عن expected SourceId؛ هذا أعلى أولوية ويوقف الإرسال حتى اكتمال المطابقة والتحقق من كل الهويات والمراجع.",
+        "fieldNames": [
+          "channel",
+          "remote_cursor",
+          "last_remote_version",
+          "status"
+        ]
+      },
+      "syntheticData": {
+        "deviceId": "device-synthetic-012",
+        "expectedSourceId": "laravel:production-synthetic",
+        "actualSourceId": "laravel:recovery-synthetic",
+        "oldCursor": "cursor-production-synthetic-120",
+        "newSnapshotCursor": "cursor-recovery-synthetic-001",
+        "pendingOperations": [
+          {
+            "operationId": "c0000000-0000-4000-8000-000000000001",
+            "entityType": "laravel.data",
+            "clientUuid": "c0000000-0000-4000-8000-000000000002",
+            "canonicalIdBefore": "900012",
+            "canonicalMatchInNewSource": "900012"
+          },
+          {
+            "operationId": "c0000000-0000-4000-8000-000000000003",
+            "entityType": "laravel.sponsorships",
+            "clientUuid": "c0000000-0000-4000-8000-000000000004",
+            "canonicalIdBefore": "sponsorship-synthetic-012",
+            "canonicalMatchInNewSource": null
+          }
+        ]
+      },
+      "steps": [
+        "اكتشف اختلاف SourceId وأوقف كل Submission إلى المصدر الجديد فوراً.",
+        "احفظ outbox والتعارضات والتدقيق والعمليات الأصلية، ولا تعتمد oldCursor مع المصدر الجديد.",
+        "نزّل Snapshot authoritative وموضع change feed من المصدر الجديد وطابق كل ClientUuid وCanonicalId.",
+        "صنف العملية التي لا يوجد لها تطابق رسمي كتعارض هوية حرج، وصنف أي مرجع مفقود أو محذوف وفق قاعدته.",
+        "أعد بناء الإسقاطات المحلية واربط checkpoint الجديد فقط بعد نجاح معاملة Snapshot ومعالجة المراجع.",
+        "أعد التحقق من الصلاحيات، ثم استأنف الإرسال بالمعرفات الأصلية فقط عندما لا تبقى أخطاء هوية حرجة غير محلولة."
+      ],
+      "expected": {
+        "conflictClass": "SourceIdentityMismatch",
+        "submissionStoppedBeforeReconciliation": true,
+        "outboxPreserved": true,
+        "conflictsPreserved": true,
+        "auditPreserved": true,
+        "oldCursorReusedAcrossSources": false,
+        "operationIdsPreserved": [
+          "c0000000-0000-4000-8000-000000000001",
+          "c0000000-0000-4000-8000-000000000003"
+        ],
+        "cacheRebuiltFromAuthoritativeSnapshot": true,
+        "newCheckpointBoundAfterDurableCommit": "cursor-recovery-synthetic-001",
+        "permissionRevalidationRequired": true,
+        "submissionResumesWithUnresolvedCriticalIdentityErrors": false,
+        "automaticOutboxDeletion": false
+      }
+    },
+    {
+      "id": "AC-NET-RECONNECT-001",
+      "title": "استعادة الاتصال وإعادة إرسال عملية مجهولة النتيجة بلا تكرار",
+      "category": "reconnection-and-idempotency",
+      "priority": "critical",
+      "entity": {
+        "id": "desktop.pending_laravel_operations",
+        "owner": "Desktop",
+        "sourceOfTruth": "Device-local durable pending-operation queue",
+        "channel": "laravel-sync"
+      },
+      "relatedEntities": [
+        "desktop.sync_checkpoints",
+        "desktop.cached_laravel_records",
+        "laravel.sync_idempotency_log_v4",
+        "laravel.sync_outbox_v4"
+      ],
+      "policyRefs": [
+        "sync-policy.json#/contract/operationId/idempotencyKey",
+        "sync-policy.json#/contract/operationId/retryBehavior",
+        "sync-policy.json#/offlineAuthorization/reconnection",
+        "sync-policy.json#/cursors/advance",
+        "sync-policy.json#/time/timestampRewriteOnRetry"
+      ],
+      "contractRefs": [
+        "SyncEnvelope.OperationId",
+        "SyncEnvelope.OccurredAtUtc",
+        "SyncEnvelope.Cursor",
+        "ConflictClass.Equivalent"
+      ],
+      "conflictRule": {
+        "class": "Equivalent",
+        "policyPath": "sync-policy.json#/contract/operationId/retryBehavior",
+        "classificationBasis": "إعادة الإرسال تحمل OperationId والحمولة نفسيهما؛ سجل idempotency يجعل النتيجة مكافئة ويمنع أثراً تجارياً ثانياً.",
+        "fieldNames": [
+          "idempotency_key",
+          "attempt_count",
+          "acknowledged_at"
+        ],
+        "fieldCriticality": "Critical"
+      },
+      "syntheticData": {
+        "sourceId": "laravel:production-synthetic",
+        "deviceId": "device-synthetic-013",
+        "operationId": "d0000000-0000-4000-8000-000000000001",
+        "clientUuid": "d0000000-0000-4000-8000-000000000002",
+        "canonicalId": "900013",
+        "operationType": "Update",
+        "baseVersion": 50,
+        "rowVersion": "row-synthetic-50",
+        "occurredAtUtc": "2026-11-24T09:35:00Z",
+        "cursorBeforeReconnect": "cursor-synthetic-130",
+        "cursorAfterCommittedFeedBatch": "cursor-synthetic-131",
+        "attemptCountBeforeRetry": 1,
+        "firstAttemptResult": "timeout-after-possible-owner-commit",
+        "retryResult": "idempotent-success-with-original-operation-id",
+        "patch": {
+          "fieldName": "data_family_name",
+          "baseValue": "اسم-قاعدة-اصطناعي",
+          "localValue": "اسم-استعادة-اصطناعي",
+          "remoteValue": "اسم-استعادة-اصطناعي",
+          "criticality": "Critical"
+        }
+      },
+      "steps": [
+        "ابدأ بعملية Pending انتهت محاولتها الأولى بمهلة ولا تعرف الواجهة هل قبلها المالك أم لا.",
+        "أعد الاتصال وتحقق من الجهاز والمستخدم والصلاحيات قبل إرسال أي عملية معلقة.",
+        "أعد إرسال العملية بـOperationId وOccurredAtUtc وClientUuid والحمولة الأصلية نفسها، مع زيادة عداد المحاولة فقط.",
+        "استلم نتيجة idempotent-success وطبق دفعة التغييرات الراجعة في معاملة محلية واحدة.",
+        "قدم Cursor إلى cursor-synthetic-131 بعد نجاح المعاملة ثم علم acknowledged_at للعملية."
+      ],
+      "expected": {
+        "conflictClass": "Equivalent",
+        "operationIdOnRetry": "d0000000-0000-4000-8000-000000000001",
+        "newOperationCreatedForRetry": false,
+        "businessEffectCount": 1,
+        "clientUuidUnchanged": true,
+        "occurredAtUtcOnRetry": "2026-11-24T09:35:00Z",
+        "permissionRevalidatedBeforeSubmission": true,
+        "cursorAdvancedBeforeDurableCommit": false,
+        "cursorAfterDurableCommit": "cursor-synthetic-131",
+        "operationAcknowledged": true,
+        "duplicateBusinessRecordCreated": false,
+        "businessDataLoss": false
+      }
+    }
+  ]
+}

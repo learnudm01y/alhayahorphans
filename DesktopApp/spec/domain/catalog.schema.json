@@ -1,0 +1,623 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://alhayahorphans.local/schemas/desktop-domain-catalog.schema.json",
+  "title": "Al Hayah Orphans Desktop Domain Catalog",
+  "description": "Machine-readable contract for entity ownership and field classification. It describes metadata only and forbids embedded business records.",
+  "type": "object",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/entityOwnershipCatalog"
+    },
+    {
+      "$ref": "#/$defs/fieldCatalog"
+    }
+  ],
+  "$defs": {
+    "owner": {
+      "type": "string",
+      "enum": [
+        "Laravel",
+        "Local Server",
+        "Desktop"
+      ]
+    },
+    "sensitivity": {
+      "type": "string",
+      "enum": [
+        "public",
+        "internal",
+        "confidential",
+        "restricted"
+      ]
+    },
+    "nonEmptyString": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sourceOfTruth": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "system",
+        "store",
+        "object",
+        "access"
+      ],
+      "properties": {
+        "system": {
+          "$ref": "#/$defs/owner"
+        },
+        "store": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "object": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "access": {
+          "$ref": "#/$defs/nonEmptyString"
+        }
+      }
+    },
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "primaryKey",
+        "syncKey",
+        "naturalKeys"
+      ],
+      "properties": {
+        "primaryKey": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/nonEmptyString"
+          }
+        },
+        "syncKey": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "naturalKeys": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "$ref": "#/$defs/nonEmptyString"
+            }
+          }
+        }
+      }
+    },
+    "deletion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "strategy",
+        "field",
+        "tombstone"
+      ],
+      "properties": {
+        "strategy": {
+          "type": "string",
+          "enum": [
+            "hard",
+            "hard-with-sync-tombstone",
+            "soft",
+            "status-and-retention",
+            "immutable",
+            "cache-eviction",
+            "not-applicable"
+          ]
+        },
+        "field": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tombstone": {
+          "$ref": "#/$defs/nonEmptyString"
+        }
+      }
+    },
+    "reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "field",
+        "targetEntity",
+        "targetField",
+        "kind",
+        "crossOwner",
+        "onDelete"
+      ],
+      "properties": {
+        "field": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "targetEntity": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "targetField": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "foreign-key",
+            "logical",
+            "polymorphic",
+            "snapshot"
+          ]
+        },
+        "crossOwner": {
+          "type": "boolean"
+        },
+        "onDelete": {
+          "type": "string",
+          "enum": [
+            "restrict",
+            "cascade",
+            "set-null",
+            "retain",
+            "not-applicable"
+          ]
+        }
+      }
+    },
+    "introspectionRequirement": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "required": [
+        "table",
+        "columns",
+        "onMissing"
+      ],
+      "properties": {
+        "table": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "columns": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/nonEmptyString"
+          }
+        },
+        "onMissing": {
+          "$ref": "#/$defs/nonEmptyString"
+        }
+      }
+    },
+    "entity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "nameAr",
+        "nameEn",
+        "kind",
+        "owner",
+        "sourceOfTruth",
+        "identity",
+        "deletion",
+        "sensitivity",
+        "exposure",
+        "sourceEvidence",
+        "screenEvidence",
+        "references",
+        "requiresIntrospection",
+        "introspection",
+        "notes"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^(laravel|local|desktop)\\.[a-z0-9_]+$"
+        },
+        "nameAr": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "nameEn": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "physical-table",
+            "local-contract",
+            "desktop-contract"
+          ]
+        },
+        "owner": {
+          "$ref": "#/$defs/owner"
+        },
+        "sourceOfTruth": {
+          "$ref": "#/$defs/sourceOfTruth"
+        },
+        "identity": {
+          "$ref": "#/$defs/identity"
+        },
+        "deletion": {
+          "$ref": "#/$defs/deletion"
+        },
+        "sensitivity": {
+          "$ref": "#/$defs/sensitivity"
+        },
+        "exposure": {
+          "type": "string",
+          "enum": [
+            "bidirectional-sync",
+            "read-only-projection",
+            "server-only",
+            "local-api",
+            "device-only"
+          ]
+        },
+        "sourceEvidence": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/nonEmptyString"
+          }
+        },
+        "screenEvidence": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^Desktop/Documents/_[0-9]+/code\\.html$"
+          }
+        },
+        "references": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/reference"
+          }
+        },
+        "requiresIntrospection": {
+          "type": "boolean"
+        },
+        "introspection": {
+          "$ref": "#/$defs/introspectionRequirement"
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    },
+    "catalogMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "catalogVersion",
+        "generatedAt",
+        "sourceBasis",
+        "containsBusinessData"
+      ],
+      "properties": {
+        "catalogVersion": {
+          "type": "string",
+          "const": "1.0.0"
+        },
+        "generatedAt": {
+          "type": "string",
+          "format": "date"
+        },
+        "sourceBasis": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/nonEmptyString"
+          }
+        },
+        "containsBusinessData": {
+          "type": "boolean",
+          "const": false
+        }
+      }
+    },
+    "ownershipRules": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "laravel",
+        "localServer",
+        "desktop",
+        "crossOwnerReferences",
+        "snapshots",
+        "localDatabaseAccess"
+      ],
+      "properties": {
+        "laravel": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "localServer": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "desktop": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "crossOwnerReferences": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "snapshots": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "localDatabaseAccess": {
+          "$ref": "#/$defs/nonEmptyString"
+        }
+      }
+    },
+    "schemaIntrospection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "runtimeStatus",
+        "rules",
+        "guards",
+        "driftRegister"
+      ],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "const": "metadata-only"
+        },
+        "runtimeStatus": {
+          "type": "string",
+          "const": "deferred-by-user"
+        },
+        "rules": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/nonEmptyString"
+          }
+        },
+        "guards": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "table",
+              "columns",
+              "onMissing"
+            ],
+            "properties": {
+              "table": {
+                "$ref": "#/$defs/nonEmptyString"
+              },
+              "columns": {
+                "type": "array",
+                "uniqueItems": true,
+                "items": {
+                  "$ref": "#/$defs/nonEmptyString"
+                }
+              },
+              "onMissing": {
+                "$ref": "#/$defs/nonEmptyString"
+              }
+            }
+          }
+        },
+        "driftRegister": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "object",
+              "observation",
+              "requiredAction"
+            ],
+            "properties": {
+              "object": {
+                "$ref": "#/$defs/nonEmptyString"
+              },
+              "observation": {
+                "$ref": "#/$defs/nonEmptyString"
+              },
+              "requiredAction": {
+                "$ref": "#/$defs/nonEmptyString"
+              }
+            }
+          }
+        }
+      }
+    },
+    "entityOwnershipCatalog": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "metadata",
+        "ownershipRules",
+        "schemaIntrospection",
+        "entities"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "entity-ownership"
+        },
+        "metadata": {
+          "$ref": "#/$defs/catalogMetadata"
+        },
+        "ownershipRules": {
+          "$ref": "#/$defs/ownershipRules"
+        },
+        "schemaIntrospection": {
+          "$ref": "#/$defs/schemaIntrospection"
+        },
+        "entities": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/entity"
+          }
+        }
+      }
+    },
+    "field": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "dataType",
+        "nullable",
+        "owner",
+        "sensitivity",
+        "identityRole",
+        "sourceEvidence",
+        "requiresIntrospection",
+        "reference"
+      ],
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "dataType": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "nullable": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "Null means source-only analysis cannot establish nullability and runtime metadata introspection is mandatory before implementation."
+        },
+        "owner": {
+          "$ref": "#/$defs/owner"
+        },
+        "sensitivity": {
+          "$ref": "#/$defs/sensitivity"
+        },
+        "identityRole": {
+          "type": "string",
+          "enum": [
+            "primary",
+            "sync",
+            "natural",
+            "deletion",
+            "none"
+          ]
+        },
+        "sourceEvidence": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/nonEmptyString"
+          }
+        },
+        "requiresIntrospection": {
+          "type": "boolean"
+        },
+        "reference": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/reference"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "fieldGroup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entityId",
+        "owner",
+        "sourceOfTruth",
+        "fields"
+      ],
+      "properties": {
+        "entityId": {
+          "type": "string",
+          "pattern": "^(laravel|local|desktop)\\.[a-z0-9_]+$"
+        },
+        "owner": {
+          "$ref": "#/$defs/owner"
+        },
+        "sourceOfTruth": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "fields": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/field"
+          }
+        }
+      }
+    },
+    "fieldCatalog": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "metadata",
+        "conventions",
+        "entities"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "field-catalog"
+        },
+        "metadata": {
+          "$ref": "#/$defs/catalogMetadata"
+        },
+        "conventions": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "coverage",
+            "nullability",
+            "sensitivity",
+            "references",
+            "values"
+          ],
+          "properties": {
+            "coverage": {
+              "$ref": "#/$defs/nonEmptyString"
+            },
+            "nullability": {
+              "$ref": "#/$defs/nonEmptyString"
+            },
+            "sensitivity": {
+              "$ref": "#/$defs/nonEmptyString"
+            },
+            "references": {
+              "$ref": "#/$defs/nonEmptyString"
+            },
+            "values": {
+              "$ref": "#/$defs/nonEmptyString"
+            }
+          }
+        },
+        "entities": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/fieldGroup"
+          }
+        }
+      }
+    }
+  }
+}

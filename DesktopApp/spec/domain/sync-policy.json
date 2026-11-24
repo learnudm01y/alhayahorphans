@@ -1,0 +1,359 @@
+{
+  "kind": "sync-policy",
+  "policyVersion": "1.0.0",
+  "status": "final",
+  "catalog": {
+    "ownership": "DesktopApp/spec/domain/entity-ownership.json",
+    "fields": "DesktopApp/spec/domain/field-catalog.json",
+    "catalogVersion": "1.0.0",
+    "scope": "The 121 inventoried entities and 1397 inventoried fields retain their declared owners; this policy defines synchronization behavior without transferring ownership."
+  },
+  "contract": {
+    "envelopeType": "Alhayah.Contracts.Domain.SyncEnvelope",
+    "operationId": {
+      "type": "uuid-v4",
+      "scope": "globally-unique-per-logical-operation",
+      "idempotencyKey": true,
+      "retryBehavior": "reuse-original-value",
+      "reconciliationBehavior": "reuse-original-value"
+    },
+    "clientUuid": {
+      "type": "uuid-v4",
+      "scope": "stable-identity-of-every-client-known-entity",
+      "assignment": "generated-before-the-first-local-persist",
+      "mutability": "immutable",
+      "canonicalIdReplacement": false
+    },
+    "canonicalId": {
+      "type": "opaque-string",
+      "assignedBy": "entity-owner",
+      "numericAssumptions": false,
+      "temporaryValuesAllowed": false
+    },
+    "baseVersion": {
+      "type": "unsigned-integer",
+      "nullableForInitialCreate": true,
+      "meaning": "source-change-version-on-which-the-three-way-patch-is-based",
+      "staleBehavior": "perform-three-way-field-classification"
+    },
+    "rowVersion": {
+      "type": "opaque-string",
+      "meaning": "entity-owner-concurrency-token-at-base-version",
+      "clientParsing": false,
+      "comparison": "ordinal-equality-only"
+    },
+    "cursor": {
+      "type": "opaque-string",
+      "meaning": "source-issued-change-feed-position",
+      "clientParsing": false,
+      "comparison": "ordinal-equality-only"
+    },
+    "tombstone": {
+      "requiredFor": "Delete",
+      "deletedAtUtc": "required-UTC-timestamp",
+      "deletedByDeviceId": "required-registered-device-id",
+      "physicalDeletePropagation": false,
+      "referentialAction": "classify-dependent-operations-as-deleted-reference-critical-conflicts"
+    },
+    "unknownJsonFields": "preserve-through-extension-data-on-envelope-entity-reference-patch-and-tombstone",
+    "serialization": "camelCase-property-names-and-explicit-enum-names-are-fixed-by-contract-attributes"
+  },
+  "fields": {
+    "classificationSource": "field-catalog identityRole sensitivity reference and sourceOfTruth metadata plus the rules below",
+    "defaultCriticality": "Critical",
+    "classes": {
+      "Mergeable": "Descriptive values may participate in three-way merging; concurrent different edits to the same field still require review.",
+      "Critical": "Identity financial workflow ownership permission approval and snapshot values require review when both sides change the same field differently.",
+      "Reference": "References require canonical resolution and deletion checks before submission.",
+      "ServerOwned": "Server-generated values are never accepted as client field patches."
+    },
+    "serverOwnedFieldNames": [
+      "id",
+      "canonical_id",
+      "row_version",
+      "remote_cursor",
+      "last_remote_version",
+      "created_at",
+      "updated_at",
+      "server_received_at",
+      "sync_session_id"
+    ],
+    "criticalIdentityRoles": [
+      "primary",
+      "natural",
+      "deletion"
+    ],
+    "criticalFieldNames": [
+      "identity_number",
+      "national_id",
+      "person_identity_number",
+      "passport_number",
+      "iban",
+      "account_number",
+      "amount",
+      "total_amount",
+      "net_amount",
+      "currency_id",
+      "exchange_rate",
+      "status",
+      "state",
+      "approved_at",
+      "approved_by",
+      "approval_status",
+      "owner_id",
+      "user_id",
+      "permission_id",
+      "role_id",
+      "client_uuid",
+      "idempotency_key",
+      "deleted_at"
+    ],
+    "criticalFieldSuffixes": [
+      "_amount",
+      "_total",
+      "_approved_at",
+      "_approved_by",
+      "_identity_number",
+      "_snapshot"
+    ],
+    "mergeableFieldNames": [
+      "notes",
+      "note",
+      "description",
+      "display_name",
+      "name_ar",
+      "name_en",
+      "address_text",
+      "comments",
+      "remarks"
+    ],
+    "referenceRule": "Every field with non-null reference metadata is Reference regardless of sensitivity.",
+    "snapshotRule": "Every field ending in _snapshot is Critical immutable delivery evidence.",
+    "unknownFieldRule": "An unclassified field is Critical and its payload is preserved; it is never silently discarded."
+  },
+  "merge": {
+    "algorithm": "three-way-base-local-remote-field-merge",
+    "safeOutcomes": [
+      "LocalOnly",
+      "RemoteOnly",
+      "Equivalent",
+      "NonOverlapping"
+    ],
+    "reviewOutcomes": [
+      "ConcurrentField",
+      "CriticalField",
+      "VersionMismatch",
+      "DeleteAgainstUpdate",
+      "UnresolvedReference",
+      "DeletedReference",
+      "SourceIdentityMismatch"
+    ],
+    "rules": [
+      "Apply a local value when only local differs from base.",
+      "Apply a remote value when only remote differs from base.",
+      "Apply one value when local and remote are deeply equal.",
+      "Combine changes to different fields after every field passes classification.",
+      "Never use last-write-wins for concurrent different values of one field.",
+      "Hold delete-against-update and every deleted-reference case as critical review work.",
+      "Keep all original values OperationId ClientUuid BaseVersion RowVersion and extension data with a held conflict."
+    ],
+    "precedence": [
+      "SourceIdentityMismatch",
+      "DeletedReference",
+      "UnresolvedReference",
+      "DeleteAgainstUpdate",
+      "CriticalField",
+      "ConcurrentField",
+      "NonOverlapping",
+      "Equivalent",
+      "LocalOnly",
+      "RemoteOnly",
+      "None"
+    ]
+  },
+  "authentication": {
+    "laravel": {
+      "tokenType": "laravel-sanctum-opaque-device-token",
+      "jwt": false,
+      "revocable": true,
+      "storage": "windows-credential-manager",
+      "deviceBinding": "registered-device-id-and-stable-source-id",
+      "syncServiceAbilities": [
+        "sync:read",
+        "sync:write",
+        "sync:attachments:read",
+        "sync:attachments:write",
+        "identity:resolve"
+      ],
+      "wildcardAbilitiesAllowed": false,
+      "administratorBootstrapAbility": "desktop:admin-bootstrap",
+      "administratorBootstrapAbilityOnSyncServiceToken": false,
+      "revocationBehavior": "reject-subsequent-online-requests-and-revalidate-all-pending-operations-before-acceptance"
+    },
+    "localServer": {
+      "credentialType": "independent-device-credential",
+      "secret": "cryptographically-random-256-bit-device-secret",
+      "laravelTokenReuse": false,
+      "jwt": false,
+      "revocable": true,
+      "deviceBinding": "local-device-registration-id",
+      "rotation": "explicit-administrative-rotation-preserves-outbox-and-checkpoints"
+    },
+    "offlineAccount": {
+      "authentication": "device-local-username-and-password",
+      "passwordStorage": "argon2id-hash",
+      "plaintextPasswordStorage": false,
+      "argon2id": {
+        "saltBits": 128,
+        "hashBits": 256,
+        "memoryKib": 65536,
+        "iterations": 3,
+        "parallelism": 1
+      },
+      "permissionsStorage": "signed-local-permission-manifest",
+      "manifestSignature": "ecdsa-p256-sha256",
+      "manifestVerification": "trusted-authority-public-key-only"
+    },
+    "administrativeBootstrap": {
+      "mode": "single-use-online-interactive-bootstrap",
+      "requiredAbility": "desktop:admin-bootstrap",
+      "defaultAdministrator": false,
+      "sharedPassword": false,
+      "nonce": "cryptographically-random-256-bit-single-use-value",
+      "nonceLifetimeSeconds": 600,
+      "passwordEntry": "interactive-local-administrator-password-entry-with-confirmation",
+      "completion": "hash-password-store-signed-initial-manifest-audit-bootstrap-and-destroy-nonce",
+      "offlineBootstrapAllowed": false
+    }
+  },
+  "credentialStorage": {
+    "store": "windows-credential-manager",
+    "windowsAccount": "dedicated-sync-service-account",
+    "credentialType": "generic-credentials-persist-local-machine",
+    "laravelTarget": "Alhayah/Sync/{SourceId}/LaravelDeviceToken",
+    "localServerTarget": "Alhayah/Sync/{SourceId}/LocalDeviceCredential",
+    "bootstrapNonceTarget": "Alhayah/Sync/{SourceId}/BootstrapNonce",
+    "wpfServiceCredentialReadAccess": false,
+    "plaintextConfigurationFiles": false,
+    "logsAndTelemetry": false,
+    "distributeLaravelAppKey": false,
+    "appKeyUsage": "never-used-by-desktop-local-api-or-sync-authentication"
+  },
+  "offlineAuthorization": {
+    "effectivePermissions": "last-approved-manifest-until-next-sync",
+    "manifestContents": [
+      "user-id",
+      "device-id",
+      "source-id",
+      "permission-set",
+      "manifest-version",
+      "issued-at-utc",
+      "signature"
+    ],
+    "permissionCheck": "deny-unless-the-exact-permission-is-present-and-valid-for-the-device-and-source",
+    "localPermissionExpansion": "deny",
+    "localRoleExpansion": "deny",
+    "offlineBootstrap": "deny",
+    "audit": "every-operation",
+    "auditFields": [
+      "operation-id",
+      "offline-user-id",
+      "device-id",
+      "source-id",
+      "permission-used",
+      "manifest-version",
+      "occurred-at-utc",
+      "payload-sha256",
+      "result"
+    ],
+    "reconnection": "revalidate-user-device-permissions-and-pending-operations-before-server-acceptance",
+    "revocation": "takes-effect-at-the-next-successful-authorization-manifest-sync",
+    "pendingWorkOnRevocation": "retain-and-hold-for-administrative-review-without-submitting"
+  },
+  "sources": {
+    "identityFormat": "laravel:<installation-id> or local:<installation-id>",
+    "identityAssignment": "persistent-installation-identifier-issued-by-the-entity-owner",
+    "urlParticipation": false,
+    "certificateParticipation": false,
+    "checkpointKey": "stable-source-id",
+    "transportMetadata": "endpoint-url-tls-certificate-and-pinning-metadata-are-replaceable-transport-configuration",
+    "addressOrCertificateChange": "preserve-outbox-and-checkpoints",
+    "credentialRotation": "preserve-outbox-and-checkpoints",
+    "sourceIdentityChange": "full-reconciliation-before-sending",
+    "pendingOperationsOnIdentityChange": "preserve-with-original-operation-ids",
+    "identityChangeSteps": [
+      "stop-submission-to-the-new-source",
+      "download-the-new-source-reconciliation-snapshot-and-change-feed-position",
+      "match-every-canonical-identity-and-client-uuid-used-by-pending-operations",
+      "classify-missing-or-deleted-references-as-critical-conflicts",
+      "rebuild-local-projections-and-bind-new-source-checkpoints",
+      "revalidate-permissions-and-submit-pending-operations-with-original-operation-ids"
+    ],
+    "automaticOutboxDeletion": false,
+    "cursorReuseAcrossSourceIds": false
+  },
+  "time": {
+    "storageAndTransport": "UTC",
+    "timestampType": "date-time-offset",
+    "serialization": "iso-8601-with-offset",
+    "localTimeStorage": false,
+    "maximumRequestClockSkewSeconds": 300,
+    "authority": "entity-owner-server-received-time",
+    "deviceEventTime": "preserve-original-occurred-at-utc-for-audit",
+    "excessSkewBehavior": "reject-online-request-keep-outbox-intact-and-retry-after-clock-correction",
+    "timestampRewriteOnRetry": false
+  },
+  "cursors": {
+    "scope": "source-id-and-channel",
+    "storage": "desktop-sync-checkpoints",
+    "advance": "after-durable-local-commit",
+    "commitIncludes": [
+      "entity-projection",
+      "client-identity-map",
+      "tombstone",
+      "conflict-state",
+      "cursor"
+    ],
+    "retention": "retain-last-durable-cursor-indefinitely-until-explicit-source-removal-with-empty-outbox",
+    "timeBasedDeletion": false,
+    "batchFailure": "retain-previous-cursor-and-replay-the-uncommitted-batch",
+    "invalidOrExpiredCursor": "full-reconciliation",
+    "fullReconciliation": "retain-outbox-rebuild-cache-from-authoritative-snapshot-resolve-identities-and-bind-a-new-cursor",
+    "pendingOperationsDuringReconciliation": "preserve-and-hold-submission-until-reconciliation-completes"
+  },
+  "tombstones": {
+    "transport": "sync-envelope-with-delete-operation-and-tombstone",
+    "minimumOnlineRetentionDays": 90,
+    "serverPurgeRule": "purge-only-after-minimum-retention-and-after-every-registered-device-has-acknowledged-a-cursor-beyond-the-deletion",
+    "desktopPurgeRule": "retain-while-any-pending-operation-or-attachment-references-the-entity",
+    "referencedDeletion": "block-dependent-operation-as-critical-deleted-reference-conflict",
+    "hardDeleteWithoutTombstoneAllowed": false
+  },
+  "clientIdentity": {
+    "mapKey": "client-uuid",
+    "mapValue": "entity-type-and-nullable-canonical-id",
+    "canonicalIdUniqueness": "unique-within-entity-type",
+    "offlineCreate": "persist-client-uuid-before-referencing-the-entity",
+    "fieldReferences": "carry-target-client-uuid-until-laravel-or-local-server-returns-canonical-id",
+    "attachmentReferences": "carry-target-client-uuid-and-attachment-reference-kind-until-canonical-resolution",
+    "unresolvedReferenceState": "pending-unresolved-reference",
+    "unresolvedSubmission": "hold-dependent-field-and-attachment-operations-without-dropping-or-reordering-their-identity-links",
+    "resolution": "preserve-client-uuid-and-add-canonical-id",
+    "resolutionRecipient": "all-pending-operations-and-attachments-that-reference-the-client-uuid",
+    "operationIdAfterResolution": "unchanged",
+    "canonicalReassignment": "reject-as-critical-identity-conflict",
+    "canonicalReuseByDifferentClientUuid": "reject-as-critical-identity-conflict",
+    "deletedReferencedEntity": "critical-conflict-deleted-reference",
+    "crossOwnerBehavior": "the-same-client-uuid-contract-applies-to-laravel-and-local-server-while-each-owner-remains-authoritative-for-its-own-canonical-ids"
+  },
+  "reconciliation": {
+    "trigger": "source-identity-change-invalid-cursor-or-authoritative-drift-diagnostic",
+    "outbox": "preserve",
+    "conflicts": "preserve",
+    "audit": "preserve",
+    "cache": "rebuild-from-authoritative-snapshot",
+    "identityMap": "verify-and-repair-only-by-explicit-canonical-matches",
+    "cursor": "bind-only-after-snapshot-and-pending-reference-processing-commits",
+    "submission": "resume-after-permission-revalidation-and-zero-unresolved-critical-identity-errors"
+  }
+}

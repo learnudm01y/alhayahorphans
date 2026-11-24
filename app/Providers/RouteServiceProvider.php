@@ -26,6 +26,10 @@ class RouteServiceProvider extends ServiceProvider
     public function boot(): void
     {
         RateLimiter::for('api', function (Request $request) {
+            if ($request->is('api/desktop/v1', 'api/desktop/v1/*')) {
+                return Limit::none();
+            }
+
             // استثناء مُعلن: webhook الواتساب محمي بمصادقة apikey + throttle مخصص
             // (throttle:300,1 على المسار نفسه)، وحدّ api العام (60/دقيقة) كان سيرفض
             // دفعات Meta المتزامنة (رسائل + تحديثات حالة) بأرقام وصلات مختلفة.
@@ -65,6 +69,20 @@ class RouteServiceProvider extends ServiceProvider
             return Limit::perMinute(60)->by($request->user()?->id ?: $request->ip());
         });
 
+        RateLimiter::for('desktop-v1', function (Request $request) {
+            $key = hash('sha256', implode('|', [
+                (string) $request->header('X-Device-Id'),
+                (string) $request->header('X-Source-Id'),
+                (string) $request->ip(),
+            ]));
+
+            if ($request->is('api/desktop/v1/attachments/*/chunks/*')) {
+                return Limit::perMinute(1200)->by('desktop-v1-chunks:'.$key);
+            }
+
+            return Limit::perMinute(120)->by('desktop-v1:'.$key);
+        });
+
         RateLimiter::for('api-v4', function (Request $request) {
             // نفس منطق محدِّد 'api' — التنزيل الجماعي للصور يحتاج سقفاً واسعاً.
             if ($request->is(
@@ -94,6 +112,10 @@ class RouteServiceProvider extends ServiceProvider
             Route::middleware('api')
                 ->prefix('api')
                 ->group(base_path('routes/offline-test-development.php'));
+
+            Route::middleware('api')
+                ->prefix('api/desktop/v1')
+                ->group(base_path('routes/desktop_v1.php'));
 
             Route::middleware('web')
                 ->group(base_path('routes/web.php'));

@@ -33,10 +33,7 @@
                     { name: 'data_current_address', label: 'العنوان الحالي', selector: 'input[name="data_current_address"]' },
                     { name: 'data_city', label: 'المدينة', selector: 'select[name="data_city"]' },
                     { name: 'data_province', label: 'المحافظة', selector: 'select[name="data_province"]' },
-                    { name: 'data_health_status', label: 'الحالة الصحية', selector: 'select[name="data_health_status"]' },
-                    { name: 'data_employment_status_breadwinner', label: 'الحالة الوظيفية المعيل', selector: 'select[name="data_employment_status_breadwinner"]' },
-                    { name: 'data_housing_status', label: 'حالة السكن', selector: 'select[name="data_housing_status"]' },
-                    { name: 'data_current_housing_type', label: 'نوع السكن الحالي', selector: 'select[name="data_current_housing_type"]' }
+                    { name: 'data_health_status', label: 'الحالة الصحية', selector: 'select[name="data_health_status"]' }
                 ];
 
                 requiredFields.forEach(function(field) {
@@ -52,19 +49,95 @@
                     }
                 });
 
-                // التحقق من صحة رقم الهوية (10 أرقام)
-                const idNumber = $('input[name="data_id_number"]').val();
-                if (idNumber && idNumber.length !== 9) {
-                    errors.push('رقم الهوية يجب أن يتكون من 9 أرقام');
-                    $('input[name="data_id_number"]').addClass('is-invalid');
-                }
-
                 // التحقق من صحة رقم الملف (6 أرقام)
                 const fileId = $('input[name="file_id_number"]').val();
                 if (fileId && fileId.length > 6) {
                     errors.push('رقم الملف يجب ألا يتجاوز 6 أرقام');
                     $('input[name="file_id_number"]').addClass('is-invalid');
                 }
+
+                ['data_phone_number', 'data_alt_phone_number'].forEach(function(name, index) {
+                    const input = document.querySelector(`input[name="${name}"]`);
+                    const value = input ? input.value.trim() : '';
+                    if (value && !/^05\d{8}$/.test(value)) {
+                        errors.push((index === 0 ? 'رقم الهاتف' : 'رقم الهاتف البديل') + ' يجب أن يبدأ بـ 05 ويتكون من 10 أرقام');
+                        input.classList.add('is-invalid');
+                    }
+                });
+
+                function isRealPastDate(value) {
+                    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+                    const [year, month, day] = value.split('-').map(Number);
+                    const date = new Date(Date.UTC(year, month - 1, day));
+                    if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
+                        return false;
+                    }
+                    const today = new Date();
+                    today.setHours(23, 59, 59, 999);
+                    return date.getTime() <= today.getTime();
+                }
+
+                const dateFields = [
+                    { label: 'تاريخ الميلاد', element: document.querySelector('input[name="data_birth_date"]') },
+                    { label: 'تاريخ وفاة الأب', element: document.querySelector('input[name="father_death_date"]') },
+                    { label: 'تاريخ وفاة الأم', element: document.querySelector('input[name="mother_death_date"]') }
+                ];
+                document.querySelectorAll('.family-member-form').forEach(function(member, index) {
+                    dateFields.push({
+                        label: `تاريخ ميلاد فرد الأسرة رقم ${index + 1}`,
+                        element: member.querySelector('input[name$="[person_birth_date]"]')
+                    });
+                });
+                document.querySelectorAll('.additional-deceased-form').forEach(function(deceased, index) {
+                    dateFields.push({
+                        label: `تاريخ وفاة المتوفى الإضافي رقم ${index + 1}`,
+                        element: deceased.querySelector('input[name$="[death_date]"]')
+                    });
+                });
+                dateFields.forEach(function(field) {
+                    const value = field.element ? field.element.value.trim() : '';
+                    if (value && !isRealPastDate(value)) {
+                        errors.push(field.label + ' يجب أن يكون تاريخاً صحيحاً وليس في المستقبل');
+                        field.element.classList.add('is-invalid');
+                    }
+                });
+
+                const people = [
+                    { label: 'صاحب الملف', element: document.querySelector('input[name="data_id_number"]') },
+                    { label: 'الأب المتوفى', element: document.querySelector('input[name="father_id"]') },
+                    { label: 'الأم المتوفية', element: document.querySelector('input[name="mother_id"]') }
+                ];
+                document.querySelectorAll('.family-member-form').forEach(function(member, index) {
+                    people.push({
+                        label: `فرد الأسرة رقم ${index + 1}`,
+                        element: member.querySelector('input[name$="[person_id]"]')
+                    });
+                });
+                document.querySelectorAll('.additional-deceased-form').forEach(function(deceased, index) {
+                    people.push({
+                        label: `المتوفى الإضافي رقم ${index + 1}`,
+                        element: deceased.querySelector('input[name$="[id_number]"]')
+                    });
+                });
+
+                const identities = new Map();
+                people.forEach(function(person) {
+                    const value = person.element ? person.element.value.trim() : '';
+                    if (!value) return;
+                    if (!/^\d{9}$/.test(value)) {
+                        errors.push('رقم هوية ' + person.label + ' يجب أن يتكون من 9 أرقام');
+                        person.element.classList.add('is-invalid');
+                        return;
+                    }
+                    if (identities.has(value)) {
+                        const firstPerson = identities.get(value);
+                        errors.push(`رقم الهوية ${value} مكرر بين ${firstPerson.label} و${person.label}`);
+                        firstPerson.element.classList.add('is-invalid');
+                        person.element.classList.add('is-invalid');
+                    } else {
+                        identities.set(value, person);
+                    }
+                });
 
                 // عرض الأخطاء إذا وجدت
                 if (errors.length > 0) {
@@ -102,13 +175,7 @@
                 }
             }
 
-            // التحقق عند تقديم النموذج
-            $('#main_form').on('submit', function(e) {
-                if (!collectAndDisplayValidationErrors()) {
-                    e.preventDefault();
-                    return false;
-                }
-            });
+            window.collectAdminCreateValidationErrors = collectAndDisplayValidationErrors;
 
             // إزالة علامة الخطأ عند تعديل الحقل
             $('input[required], select[required], input.is-invalid, select.is-invalid').on('change input', function() {
@@ -467,7 +534,7 @@
                     else if (input.name.includes('[person_id]')) {
                         input.setAttribute('inputmode', 'numeric');
                         input.setAttribute('pattern', '[0-9]*');
-                        input.setAttribute('maxlength', '9');
+                        input.setAttribute('maxlength', '10');
                         input.setAttribute('oninput', "this.value = this.value.replace(/[^0-9]/g, '')");
                         input.value = '';
                     }
@@ -510,7 +577,16 @@
                 });
             };
 
+            const uploadZone = template.querySelector('[data-upload-zone]');
+            if (uploadZone) {
+                uploadZone.setAttribute('data-upload-zone', `family_${familyMemberCount}`);
+                delete uploadZone.dataset.initialized;
+            }
+
             document.getElementById('familyMembersContainer').appendChild(template);
+            if (uploadZone && window.initUploadZone) {
+                window.initUploadZone(uploadZone);
+            }
 
             // ربط السجل المدني على person_id للفرد الجديد
             const newPersonIdInput = template.querySelector('input[name$="[person_id]"]');
@@ -786,15 +862,6 @@
     {{-- عملية التحقق من إدخال بيانت الاب والاب المتوفين --}}
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // التحقق من الحقول الإجبارية للأب المتوفى
-            const fatherRequiredFields = {
-                'father_first_name': 'الاسم الأول للأب',
-                'father_last_name': 'اسم عائلة الأب',
-                'father_id': 'رقم هوية الأب',
-                'father_death_date': 'تاريخ وفاة الأب',
-                'father_death_reason': 'سبب وفاة الأب'
-            };
-
             // دالة للتحقق من تاريخ الوفاة
             function validateDeathDate(deathDateInput) {
                 const deathDate = new Date(deathDateInput.value);
@@ -839,35 +906,6 @@
 
             document.querySelector('input[name="mother_id"]').addEventListener('input', function() {
                 validateIdNumber(this);
-            });
-
-            // التحقق من البيانات قبل الإرسال
-            (document.getElementById('main_form') || document.querySelector('form')).addEventListener('submit', function(e) {
-                const section = document.querySelector('select[name="data_section_id"]').value;
-
-                if (section === '1') { // قسم الأيتام
-                    // التحقق من بيانات الأب - فقط إذا أدخل المستخدم رقم هوية الأب
-                    const fatherIdInput = this.querySelector('[name="father_id"]');
-                    const fatherIdValue = fatherIdInput ? fatherIdInput.value.trim() : '';
-
-                    if (fatherIdValue) {
-                        for (const [field, label] of Object.entries(fatherRequiredFields)) {
-                            const input = this.querySelector(`[name="${field}"]`);
-                            if (!input || !input.value || !input.value.trim()) {
-                                e.preventDefault();
-                                Swal.fire({
-                                    icon: 'error',
-                                    title: 'حقل مطلوب',
-                                    text: `الرجاء إدخال ${label}`
-                                });
-                                const deceasedTabEl = document.querySelector('#deceased-tab');
-                                if (deceasedTabEl) bootstrap.Tab.getInstance(deceasedTabEl)?.show();
-                                if (input) input.focus();
-                                return;
-                            }
-                        }
-                    }
-                }
             });
         });
     </script>
@@ -966,24 +1004,6 @@
             if (docTypeSelect && fileTypeHidden) {
                 fileTypeHidden.value = docTypeSelect.value;
             }
-            // Prevent submit if not selected
-            if (!hiddenInput.value) {
-                e.preventDefault();
-                alert('الرجاء اختيار الشخص للمرفق');
-                var tab = document.querySelector('#attachments-tab');
-                if (tab) new bootstrap.Tab(tab).show();
-                personSelector.focus();
-                return false;
-            }
-            if (!fileTypeHidden.value) {
-                e.preventDefault();
-                alert('الرجاء اختيار نوع الوثيقة');
-                var tab = document.querySelector('#attachments-tab');
-                if (tab) new bootstrap.Tab(tab).show();
-                docTypeSelect.focus();
-                return false;
-            }
-            // ...existing code...
         });
     </script>
 @endpush
@@ -996,48 +1016,42 @@
             if (form) {
                 form.addEventListener('submit', function(e) {
                     e.preventDefault();
+                    if (window.collectAdminCreateValidationErrors && !window.collectAdminCreateValidationErrors()) {
+                        return;
+                    }
 
-                    // تجهيز الحقول الديناميكية (المرفقات)
+                    const attachmentTasks = window.allDocs
+                        ? Array.from(window.allDocs.values()).flat()
+                        : [];
+                    const incompleteTask = attachmentTasks.find(task =>
+                        task.status !== 'completed' || task.uploadStatus !== 'done' || !task.tempPath
+                    );
+                    if (incompleteTask) {
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'المرفقات غير جاهزة',
+                            text: 'انتظر اكتمال رفع جميع المرفقات، أو احذف المرفق الذي فشل رفعه قبل الحفظ.'
+                        });
+                        return;
+                    }
+
+                    // تجهيز الحقول الديناميكية (المسارات المؤقتة للمرفقات)
                     let index = 0;
-                    docs.forEach((doc, docId) => {
-                        // ملف المرفق
-                        const fileInput = document.createElement('input');
-                        fileInput.type = 'file';
-                        fileInput.name = `attachments[${index}][file]`;
-                        fileInput.style.display = 'none';
-                        const dt = new DataTransfer();
-                        dt.items.add(doc.file);
-                        fileInput.files = dt.files;
-                        form.appendChild(fileInput);
-
-                        // رقم الهوية
-                        const personIdInput = document.createElement('input');
-                        personIdInput.type = 'hidden';
-                        personIdInput.name = `attachments[${index}][person_identity_number]`;
-                        personIdInput.value = doc.personId;
-                        form.appendChild(personIdInput);
-
-                        // اسم الملف
-                        const fileNameInput = document.createElement('input');
-                        fileNameInput.type = 'hidden';
-                        fileNameInput.name = `attachments[${index}][stored_file_name]`;
-                        fileNameInput.value = doc.name;
-                        form.appendChild(fileNameInput);
-
-                        // نوع الوثيقة
-                        const fileTypeInput = document.createElement('input');
-                        fileTypeInput.type = 'hidden';
-                        fileTypeInput.name = `attachments[${index}][file_type]`;
-                        fileTypeInput.value = doc.type;
-                        form.appendChild(fileTypeInput);
-
-                        // رقم الملف العام
-                        const fileIdInput = document.createElement('input');
-                        fileIdInput.type = 'hidden';
-                        fileIdInput.name = `attachments[${index}][file_id_number]`;
-                        fileIdInput.value = document.getElementById('document_id').value;
-                        form.appendChild(fileIdInput);
-
+                    attachmentTasks.forEach(task => {
+                        const fields = {
+                            temp_path: task.tempPath,
+                            person_identity_number: task.personKey,
+                            stored_file_name: (task.processedFile || task.originalFile).name,
+                            file_type: task.docType,
+                            file_id_number: document.querySelector('input[name="file_id_number"]').value
+                        };
+                        Object.entries(fields).forEach(([key, value]) => {
+                            const input = document.createElement('input');
+                            input.type = 'hidden';
+                            input.name = `attachments[${index}][${key}]`;
+                            input.value = value || '';
+                            form.appendChild(input);
+                        });
                         index++;
                     });
 
@@ -1054,7 +1068,9 @@
                             method: 'POST',
                             body: formData,
                             headers: {
-                                'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value
+                                'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value,
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'Accept': 'application/json'
                             }
                         })
                         .then(async response => {
@@ -1075,16 +1091,7 @@
                             status
                         }) => {
                             // تحقق من نوع الاستجابة
-                            if (typeof data === 'object' && data.success) {
-                                Swal.fire({
-                                    icon: 'success',
-                                    title: 'تم الحفظ',
-                                    text: 'تم حفظ السجل بنجاح'
-                                }).then(() => {
-                                    window.location.reload();
-                                });
-                            } else if (status === 200 && typeof data === 'string' && data.indexOf(
-                                    'success') !== -1) {
+                            if (status === 200 && typeof data === 'object' && data.success) {
                                 Swal.fire({
                                     icon: 'success',
                                     title: 'تم الحفظ',
@@ -1096,7 +1103,7 @@
                                 Swal.fire({
                                     icon: 'error',
                                     title: 'خطأ',
-                                    text: (data && data.error) ? data.error :
+                                    text: (data && (data.error || data.message)) ? (data.error || data.message) :
                                         'حدث خطأ أثناء الحفظ'
                                 });
                             }
@@ -1795,11 +1802,31 @@
     // إدارة المتوفين الإضافيين في نموذج الإنشاء
     var createDeceasedCount = 0;
     var createDeathReasonsData = @json($death_reasons->map(fn($dr) => ['id' => $dr->id, 'desc' => $dr->description]));
+    @php
+        $createDeceasedDocumentTypesData = $documentTypes
+            ->where('deceased_enabled', 1)
+            ->where('description', '!=', 'Unknown')
+            ->map(fn($type) => [
+                'pref' => $type->pref,
+                'desc' => $type->description,
+                'required' => (bool) $type->deceased_required,
+            ])->values();
+    @endphp
+    var createDeceasedDocumentTypesData = @json($createDeceasedDocumentTypesData);
 
     function buildCreateDeathReasonsOptions() {
         var opts = '<option value="">اختر</option>';
         createDeathReasonsData.forEach(function (dr) {
             opts += '<option value="' + dr.id + '">' + dr.desc + '</option>';
+        });
+        return opts;
+    }
+
+    function buildCreateDeceasedDocumentTypeOptions() {
+        var opts = '<option value="">اختر نوع الوثيقة</option>';
+        createDeceasedDocumentTypesData.forEach(function (type) {
+            opts += '<option value="' + type.pref + '"' + (type.required ? ' data-required="true"' : '') + '>'
+                + (type.required ? '★ ' : '') + type.desc + (type.required ? ' (إجباري)' : '') + '</option>';
         });
         return opts;
     }
@@ -1858,7 +1885,7 @@
                     <div class="input-group">
                         <input type="text" name="additional_deceased[${index}][id_number]"
                                class="form-control additional-deceased-id-input" data-index="${index}"
-                               inputmode="numeric" maxlength="9"
+                               inputmode="numeric" maxlength="10"
                                oninput="this.value=this.value.replace(/[^0-9]/g,'')"
                                placeholder="رقم الهوية">
                     </div>
@@ -1900,6 +1927,17 @@
                         ${buildCreateDeathReasonsOptions()}
                     </select>
                 </div>
+                <div class="col-12 mt-3">
+                    <label class="form-label fw-bold">وثائق المتوفى الإضافي</label>
+                    <p class="text-muted small mb-2">النجمة توضح الإلزام في التسجيل العام ولا تمنع الحفظ هنا.</p>
+                    <div data-upload-zone="additional_deceased_${index}" class="upload-zone">
+                        <select class="form-select mainDocumentTypeSelect">
+                            ${buildCreateDeceasedDocumentTypeOptions()}
+                        </select>
+                        <input type="file" class="mainDocumentFileInput" accept="image/*,.heic,.heif" style="display:none;">
+                        <div class="mainDocumentPreview mt-3"></div>
+                    </div>
+                </div>
             </div>
         </div>`;
     }
@@ -1915,6 +1953,10 @@
                 container.insertAdjacentHTML('beforeend', buildCreateAdditionalDeceasedForm(createDeceasedCount));
                 syncCreateAdditionalDeceasedOptions();
                 var newForm = container.lastElementChild;
+                var newUploadZone = newForm.querySelector('[data-upload-zone]');
+                if (newUploadZone && window.initUploadZone) {
+                    window.initUploadZone(newUploadZone);
+                }
                 var idInput = newForm.querySelector('.additional-deceased-id-input');
                 if (idInput && window.setupAdditionalDeceasedLookup) {
                     window.setupAdditionalDeceasedLookup(idInput, createDeceasedCount);
@@ -1925,7 +1967,12 @@
             container.addEventListener('click', function (e) {
                 var btn = e.target.closest('.remove-additional-deceased-create');
                 if (btn) {
-                    btn.closest('.additional-deceased-form').remove();
+                    var removedForm = btn.closest('.additional-deceased-form');
+                    var removedZone = removedForm.querySelector('[data-upload-zone]');
+                    if (removedZone && window.removeAllAttachmentTasksForPersonKey) {
+                        window.removeAllAttachmentTasksForPersonKey(removedZone.getAttribute('data-upload-zone'));
+                    }
+                    removedForm.remove();
                     syncCreateAdditionalDeceasedOptions();
                     if (container.querySelectorAll('.additional-deceased-form').length === 0 && noMsg) {
                         noMsg.style.display = 'block';

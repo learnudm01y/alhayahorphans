@@ -1,0 +1,151 @@
+<Window x:Class="Alhayah.Desktop.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="منظومة الحياة للعمل الإغاثي"
+        Width="1280"
+        Height="800"
+        MinWidth="1000"
+        MinHeight="650"
+        WindowStartupLocation="CenterScreen"
+        FlowDirection="RightToLeft"
+        FontFamily="{StaticResource AppFontFamily}"
+        Background="{StaticResource CanvasBrush}">
+    <DockPanel>
+        <Border DockPanel.Dock="Top"
+                Height="64"
+                Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,0,0,1">
+            <Grid Margin="24,0">
+                <TextBlock VerticalAlignment="Center"
+                           FontSize="18"
+                           FontWeight="SemiBold"
+                           Text="منظومة الحياة للعمل الإغاثي" />
+                <Border HorizontalAlignment="Left"
+                        VerticalAlignment="Center"
+                        Padding="10,5"
+                        Background="{StaticResource CanvasBrush}"
+                        CornerRadius="4">
+                    <TextBlock Foreground="{StaticResource SecondaryBrush}"
+                               Text="وضع العمل دون اتصال" />
+                </Border>
+            </Grid>
+        </Border>
+
+        <Border DockPanel.Dock="Right"
+                Width="{StaticResource SidebarWidth}"
+                Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1,0,0,0">
+            <StackPanel Margin="16,20">
+                <TextBlock Margin="8,0,8,24"
+                           FontSize="20"
+                           FontWeight="Bold"
+                           Foreground="{StaticResource PrimaryBrush}"
+                           Text="الحياة للأيتام" />
+                <TextBlock Margin="8,0,8,8"
+                           FontSize="12"
+                           Foreground="{StaticResource TextMutedBrush}"
+                           Text="الإدارات والبرامج" />
+
+                <Button Command="{Binding NavigateToDashboardCommand}"
+                        Style="{StaticResource NavigationButtonStyle}">
+                    <StackPanel Orientation="Horizontal">
+                        <Path Width="20"
+                              Height="20"
+                              Margin="0,0,10,0"
+                              Data="{StaticResource DashboardIcon}"
+                              Fill="{StaticResource SecondaryBrush}"
+                              Stretch="Uniform" />
+                        <TextBlock VerticalAlignment="Center" Text="لوحة التحكم" />
+                    </StackPanel>
+                </Button>
+
+                <Button Command="{Binding NavigateToSettingsCommand}"
+                        Style="{StaticResource NavigationButtonStyle}">
+                    <StackPanel Orientation="Horizontal">
+                        <Path Width="20"
+                              Height="20"
+                              Margin="0,0,10,0"
+                              Data="{StaticResource SettingsIcon}"
+                              Stroke="{StaticResource SecondaryBrush}"
+                              StrokeThickness="1.7"
+                              StrokeLineCap="Round"
+                              Stretch="Uniform" />
+                        <TextBlock VerticalAlignment="Center" Text="إعدادات الاتصال" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+        </Border>
+
+        <Grid Margin="24">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0">
+                <Grid x:Name="DashboardPanel"
+                      Visibility="{Binding IsDashboardSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <StackPanel>
+                        <TextBlock FontSize="{StaticResource TitleFontSize}"
+                                   FontWeight="SemiBold"
+                                   Text="لوحة التحكم والمؤشرات" />
+                        <TextBlock Margin="0,8,0,20"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   Text="واجهة تأسيسية ببيانات اصطناعية فقط" />
+                        <Border Padding="24"
+                                Background="{StaticResource SurfaceBrush}"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8">
+                            <StackPanel>
+                                <TextBlock FontSize="18"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource PrimaryBrush}"
+                                           Text="جاهزية العمل المحلي" />
+                                <TextBlock Margin="0,10,0,0"
+                                           Foreground="{StaticResource TextMutedBrush}"
+                                           Text="تعمل هذه المرحلة عبر IPC وهمي ولا تفتح قاعدة بيانات أو اتصال شبكة." />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Grid>
+
+                <Grid x:Name="SettingsPanel"
+                      Visibility="{Binding IsSettingsSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <StackPanel Width="520" HorizontalAlignment="Right">
+                        <TextBlock FontSize="{StaticResource TitleFontSize}"
+                                   FontWeight="SemiBold"
+                                   Text="إعدادات الاتصال" />
+                        <TextBlock Margin="0,8,0,20"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   Text="حفظ تجريبي محلي عبر عقد IPC دون التحقق من الشبكة" />
+                        <Border Padding="24"
+                                Background="{StaticResource SurfaceBrush}"
+                                BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8">
+                            <StackPanel>
+                                <TextBlock Margin="0,0,0,8"
+                                           FontWeight="SemiBold"
+                                           Text="اسم الاتصال التجريبي" />
+                                <TextBox Text="{Binding ConnectionName, UpdateSourceTrigger=PropertyChanged}" />
+                                <Button Margin="0,16,0,0"
+                                        HorizontalAlignment="Left"
+                                        Command="{Binding SaveSettingsCommand}"
+                                        Content="حفظ الإعداد التجريبي"
+                                        Style="{StaticResource PrimaryButtonStyle}" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Grid>
+            </Grid>
+
+            <TextBlock Grid.Row="1"
+                       Margin="0,16,0,0"
+                       Foreground="{StaticResource SecondaryBrush}"
+                       Text="{Binding StatusMessage}" />
+        </Grid>
+    </DockPanel>
+</Window>
