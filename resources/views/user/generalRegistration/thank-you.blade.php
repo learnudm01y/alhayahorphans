@@ -243,6 +243,12 @@
             </div>
         @endif
 
+        @if(request('guardian_as_member') === 'pending')
+            <div class="flash-warning" role="status">
+                تم استلام طلب التسجيل. ضمّ الفرد المسجّل كمعيل بانتظار موافقة الإدارة؛ عند الموافقة سيُنقل مع أسرته ووفياته إلى الأسرة الجديدة، ويُحذف ملفه الأصلي مع حفظ المرفقات.
+            </div>
+        @endif
+
         @if(session('success'))
             <div class="flash-success">{{ session('success') }}</div>
         @endif

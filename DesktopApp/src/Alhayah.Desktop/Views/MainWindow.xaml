@@ -114,31 +114,7 @@
 
                 <Grid x:Name="SettingsPanel"
                       Visibility="{Binding IsSettingsSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
-                    <StackPanel Width="520" HorizontalAlignment="Right">
-                        <TextBlock FontSize="{StaticResource TitleFontSize}"
-                                   FontWeight="SemiBold"
-                                   Text="إعدادات الاتصال" />
-                        <TextBlock Margin="0,8,0,20"
-                                   Foreground="{StaticResource TextMutedBrush}"
-                                   Text="حفظ تجريبي محلي عبر عقد IPC دون التحقق من الشبكة" />
-                        <Border Padding="24"
-                                Background="{StaticResource SurfaceBrush}"
-                                BorderBrush="{StaticResource BorderBrush}"
-                                BorderThickness="1"
-                                CornerRadius="8">
-                            <StackPanel>
-                                <TextBlock Margin="0,0,0,8"
-                                           FontWeight="SemiBold"
-                                           Text="اسم الاتصال التجريبي" />
-                                <TextBox Text="{Binding ConnectionName, UpdateSourceTrigger=PropertyChanged}" />
-                                <Button Margin="0,16,0,0"
-                                        HorizontalAlignment="Left"
-                                        Command="{Binding SaveSettingsCommand}"
-                                        Content="حفظ الإعداد التجريبي"
-                                        Style="{StaticResource PrimaryButtonStyle}" />
-                            </StackPanel>
-                        </Border>
-                    </StackPanel>
+                    <ContentControl x:Name="ConnectionSettingsHost" />
                 </Grid>
             </Grid>
 

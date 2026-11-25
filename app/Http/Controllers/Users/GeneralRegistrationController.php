@@ -101,7 +101,7 @@ class GeneralRegistrationController extends Controller
      *
      * يفحص جدول data (معيلون) وجدول re_people (أفراد الأسرة) بالهوية ورقم الملف.
      *
-     * @return array{type: string, file_id_number: string}|null نوع الارتباط ورقم الملف الآخر، أو null عند لا ارتباط
+     * @return array{type: string, file_id_number: string, data_id?: int}|null نوع الارتباط ورقم الملف الآخر، أو null عند لا ارتباط
      */
     private function classifyIdentityLink(string $identity, string $fileIdNumber): ?array
     {
@@ -116,7 +116,11 @@ class GeneralRegistrationController extends Controller
 
         $linkedData = Data::where('data_id_number', $identity)->first();
         if ($linkedData && ltrim(trim((string) $linkedData->file_id_number), '0') !== $normalizedFileId) {
-            return ['type' => 'guardian', 'file_id_number' => (string) $linkedData->file_id_number];
+            return [
+                'type' => 'guardian',
+                'file_id_number' => (string) $linkedData->file_id_number,
+                'data_id' => (int) $linkedData->id,
+            ];
         }
 
         $linkedRePeople = RePeople::where('person_id', $identity)->get(['registration_id'])
@@ -932,7 +936,7 @@ class GeneralRegistrationController extends Controller
 
                 $request->validate([
                 'file_id_number' => 'required|string|regex:/^[0-9]{6}$/',
-                'original_file_id_number' => 'nullable|string|regex:/^[0-9]{6}$/',
+                'original_file_id_number' => ['nullable', 'string', 'regex:/^(?:[0-9]{6}|TEMP-[A-Z0-9]{6})$/'],
                 'data_section_id' => 'required|integer',
                 'data_id_number' => 'required|string|digits:9',
                 'data_first_name' => 'required|string|max:255',
@@ -994,7 +998,7 @@ class GeneralRegistrationController extends Controller
             ], [
                 'file_id_number.required' => 'رقم الملف الموحد مطلوب.',
                 'file_id_number.regex' => 'رقم الملف يجب أن يتكون من 6 أرقام فقط (لا يقبل TEMP- أو أي رمز آخر). يرجى إعادة تحميل الصفحة ثم المحاولة مرة أخرى.',
-                'original_file_id_number.regex' => 'رقم الملف الأصلي يجب أن يتكون من 6 أرقام فقط. يرجى إعادة تحميل الصفحة ثم المحاولة مرة أخرى.',
+                'original_file_id_number.regex' => 'رقم الملف الأصلي أو رمز الصفحة المؤقت غير صالح. يرجى إعادة تحميل الصفحة ثم المحاولة مرة أخرى.',
                 'data_id_number.required' => 'رقم الهوية مطلوب.',
                 'data_id_number.digits' => 'رقم الهوية يجب أن يكون 9 أرقام بالضبط.',
                 'mother_id.digits' => 'رقم هوية الأم يجب أن يكون 9 أرقام بالضبط.',
@@ -1023,8 +1027,8 @@ class GeneralRegistrationController extends Controller
             // رقم الملف الذي وُلِّد لهذه الصفحة قبل أي استبدال
             // (يُستخدم لإعادة ربط السجلات التابعة له بملف المعيل الموجود)
             $originalPageFileId = $request->input('original_file_id_number');
-            $requestedFileIdNumber = $originalPageFileId !== null && $originalPageFileId !== ''
-                ? str_pad($originalPageFileId, 6, '0', STR_PAD_LEFT)
+            $requestedFileIdNumber = is_string($originalPageFileId) && preg_match('/^[0-9]{6}$/', $originalPageFileId)
+                ? $originalPageFileId
                 : $fileIdNumber;
 
             // 1️⃣ أولاً: البحث عن معيل موجود في قاعدة البيانات (أحدث سجل عند تكرار الهوية)
@@ -1137,7 +1141,20 @@ class GeneralRegistrationController extends Controller
                         //    - فرد أسرة في ملف آخر: الطلب يُقبل والنقل يُعلَّق حتى موافقة الإدارة (يُسجَّل داخل المعاملة)
                         $memberLink = $this->classifyIdentityLink($memberIdentityKey, $fileIdNumber);
 
-                        if ($memberLink !== null && $memberLink['type'] === 'guardian') {
+                        if ($memberLink !== null && $memberLink['type'] === 'guardian'
+                            && $publicSubmission && MemberTransferRequest::tableExists()
+                            && Data::where('data_id_number', $memberIdentityKey)->count() !== 1) {
+                            $reason = 'لهذه الهوية أكثر من ملف معيل؛ يلزم توحيد ملفاتها قبل طلب الضم.';
+                            return $this->rejectRegistration(
+                                $request,
+                                'الشخص برقم هوية ' . $memberIdentityKey . ' له أكثر من ملف معيل. لا يمكن إنشاء طلب الضم قبل مراجعة الملفات.',
+                                [PortalErrorMessages::field("family_members.{$index}.person_id", $reason)],
+                                422
+                            );
+                        }
+
+                        if ($memberLink !== null && $memberLink['type'] === 'guardian'
+                            && !($publicSubmission && MemberTransferRequest::tableExists())) {
                             $reason = 'مسجّل كمعيل لملف آخر برقم ' . $memberLink['file_id_number'] . '. لا يمكن ضمّه كفرد أسرة.';
                             return $this->rejectRegistration(
                                 $request,
@@ -1247,10 +1264,28 @@ class GeneralRegistrationController extends Controller
                     }
 
                     if ($memberLink['type'] === 'guardian') {
-                        $inTransactionConflictMsg = 'الشخص برقم هوية ' . $memberIdentity . ' (البطاقة ' . ($memberIndex + 1) . ') مسجل كمعيل لملف آخر (رقم ملف ' . $memberLink['file_id_number'] . '). لا يمكن ضمه كفرد أسرة. يرجى التواصل مع إدارة المؤسسة.';
-                        $inTransactionConflictField = "family_members.{$memberIndex}.person_id";
-                        $inTransactionConflictReason = 'مسجّل كمعيل لملف آخر برقم ' . $memberLink['file_id_number'] . '.';
-                        break;
+                        if ($publicSubmission && MemberTransferRequest::tableExists()
+                            && Data::where('data_id_number', $memberIdentity)->lockForUpdate()->get(['id'])->count() !== 1) {
+                            $inTransactionConflictMsg = 'الشخص برقم هوية ' . $memberIdentity . ' له أكثر من ملف معيل. لا يمكن إنشاء طلب الضم قبل مراجعة الملفات.';
+                            $inTransactionConflictField = "family_members.{$memberIndex}.person_id";
+                            $inTransactionConflictReason = 'لهذه الهوية أكثر من ملف معيل؛ يلزم توحيد ملفاتها قبل طلب الضم.';
+                            break;
+                        }
+
+                        if (!$publicSubmission || !MemberTransferRequest::tableExists()) {
+                            $inTransactionConflictMsg = 'الشخص برقم هوية ' . $memberIdentity . ' (البطاقة ' . ($memberIndex + 1) . ') مسجل كمعيل لملف آخر (رقم ملف ' . $memberLink['file_id_number'] . '). لا يمكن ضمه كفرد أسرة. يرجى التواصل مع إدارة المؤسسة.';
+                            $inTransactionConflictField = "family_members.{$memberIndex}.person_id";
+                            $inTransactionConflictReason = 'مسجّل كمعيل لملف آخر برقم ' . $memberLink['file_id_number'] . '.';
+                            break;
+                        }
+
+                        $pendingTransfers[$memberIdentity] = [
+                            'source_file_id_number' => (int) $memberLink['file_id_number'],
+                            'source_data_id' => (int) ($memberLink['data_id'] ?? 0),
+                            'member' => $member,
+                            'request_type' => MemberTransferRequest::TYPE_GUARDIAN_AS_MEMBER,
+                        ];
+                        continue;
                     }
 
                     // جدول الطابور غير مثبَّت: لا نكتب طلباً ولا نسقط الفرد بصمت، بل نعود للسلوك القديم
@@ -1724,6 +1759,10 @@ class GeneralRegistrationController extends Controller
                     if ($memberIdentityKey !== '' && isset($pendingTransfers[$memberIdentityKey])) {
                         $snapshot = $memberData;
                         unset($snapshot['registration_id']);
+                        if (($pendingTransfers[$memberIdentityKey]['request_type'] ?? null) === MemberTransferRequest::TYPE_GUARDIAN_AS_MEMBER) {
+                            $snapshot['request_type'] = MemberTransferRequest::TYPE_GUARDIAN_AS_MEMBER;
+                            $snapshot['source_data_id'] = (int) ($pendingTransfers[$memberIdentityKey]['source_data_id'] ?? 0);
+                        }
 
                         MemberTransferRequest::recordPending(
                             $registrationDataId,
@@ -1771,6 +1810,7 @@ class GeneralRegistrationController extends Controller
             ]);
             // 🛡️ هل أُضيف عمود file_hash إلى جدول attachments؟ (حماية من ترتيب الـ migrations)
             $attachmentsHasFileHash = \Illuminate\Support\Facades\Schema::hasColumn('attachments', 'file_hash');
+            $attachmentsHasRecordNumber = \Illuminate\Support\Facades\Schema::hasColumn('attachments', 'record_number');
 
             // 🛡️ منع التكرار داخل نفس الطلب: مفتاح فريد = شخص + نوع الوثيقة + بصمة المحتوى
             $seenAttachments = [];
@@ -2035,6 +2075,9 @@ class GeneralRegistrationController extends Controller
                     if ($attachmentsHasFileHash) {
                         $attachmentPayload['file_hash'] = $fileHash;
                     }
+                    if ($attachmentsHasRecordNumber) {
+                        $attachmentPayload['record_number'] = $fileIdNumber;
+                    }
 
                     try {
                         $attachment = Attachment::create($attachmentPayload);
@@ -2220,12 +2263,15 @@ class GeneralRegistrationController extends Controller
             $pendingTransfersCount = MemberTransferRequest::tableExists()
                 ? MemberTransferRequest::pending()->where('data_id', $registrationDataId)->count()
                 : 0;
+            $thankYouParameters = collect($pendingTransfers)->contains(
+                fn (array $pending) => ($pending['request_type'] ?? null) === MemberTransferRequest::TYPE_GUARDIAN_AS_MEMBER
+            ) ? ['guardian_as_member' => 'pending'] : [];
 
             if ($request->ajax() || $request->wantsJson()) {
                 // (2.4) المرفقات غير المحفوظة تُعاد للواجهة كتحذيرات بدل إسقاطها بصمت
                 return response()->json([
                     'success' => true,
-                    'redirect' => route('user.thank.you.page'),
+                    'redirect' => route('user.thank.you.page', $thankYouParameters),
                     'warnings' => $skippedAttachments,
                     'skipped_attachments' => $skippedAttachments,
                     'bank_warnings' => $duplicateBankErrors,
@@ -2233,7 +2279,7 @@ class GeneralRegistrationController extends Controller
                 ]);
             }
 
-            $thankYouRedirect = redirect()->route('user.thank.you.page');
+            $thankYouRedirect = redirect()->route('user.thank.you.page', $thankYouParameters);
             if (!empty($skippedAttachments)) {
                 $thankYouRedirect->with('attachment_warnings', $skippedAttachments);
             }

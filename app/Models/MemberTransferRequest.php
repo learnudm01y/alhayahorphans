@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class MemberTransferRequest extends Model
 {
     public const TYPE_GUARDIAN_PROMOTION = 'guardian_promotion';
+    public const TYPE_GUARDIAN_AS_MEMBER = 'guardian_as_member';
     public const STATUS_PENDING = 'pending';
     public const STATUS_APPROVED = 'approved';
     public const STATUS_REJECTED = 'rejected';
@@ -64,6 +65,11 @@ class MemberTransferRequest extends Model
     public function isGuardianPromotion(): bool
     {
         return ($this->member_snapshot['request_type'] ?? null) === self::TYPE_GUARDIAN_PROMOTION;
+    }
+
+    public function isGuardianAsMember(): bool
+    {
+        return ($this->member_snapshot['request_type'] ?? null) === self::TYPE_GUARDIAN_AS_MEMBER;
     }
 
     public function promotionAttachmentPath(int $index): string

@@ -345,7 +345,7 @@ class GuardianDuplicateMergeService
         return $this->sumCounts($counts, $this->moveExtendedRecords($fromFile, $toFile));
     }
 
-    protected function mergeDeceasedRecords(string $fromFile, string $toFile): array
+    public function mergeDeceasedRecords(string $fromFile, string $toFile, bool $failOnUnsupportedData = false): array
     {
         $fromCandidates = $this->guardianFileService->fileCandidates($fromFile);
         $toCandidates = $this->guardianFileService->fileCandidates($toFile);
@@ -400,9 +400,20 @@ class GuardianDuplicateMergeService
             }
         }
 
+        if ($failOnUnsupportedData) {
+            foreach ($targetPrimary as $row) {
+                if (!$this->hasDeceasedPerson($row, 'father')
+                    && !$this->hasDeceasedPerson($row, 'mother')
+                    && $this->hasDeceasedRowData($row)) {
+                    throw new \RuntimeException('لا يمكن نقل المتوفين تلقائياً لأن سجل الوفيات في الملف الهدف يحتوي بيانات غير مرتبطة بشخص؛ لم يتم تنفيذ التحويل.');
+                }
+            }
+        }
+
         $blankTargetPrimaryIds = $targetPrimary->filter(function ($row) {
             return !$this->hasDeceasedPerson($row, 'father')
-                && !$this->hasDeceasedPerson($row, 'mother');
+                && !$this->hasDeceasedPerson($row, 'mother')
+                && !$this->hasDeceasedRowData($row);
         })->pluck('id');
         if ($blankTargetPrimaryIds->isNotEmpty()) {
             DB::table('dead_people')->whereIn('id', $blankTargetPrimaryIds)->delete();
@@ -432,6 +443,9 @@ class GuardianDuplicateMergeService
             }
 
             if (empty($presentRoles)) {
+                if ($failOnUnsupportedData && $this->hasDeceasedRowData($row)) {
+                    throw new \RuntimeException('لا يمكن نقل المتوفين تلقائياً لأن سجل الوفيات في الملف الأصلي يحتوي بيانات غير مرتبطة بشخص؛ لم يتم تنفيذ التحويل.');
+                }
                 DB::table('dead_people')->where('id', $row->id)->delete();
                 $counts['dead_people']++;
                 continue;
@@ -483,6 +497,9 @@ class GuardianDuplicateMergeService
                 if (!$hasAdditionalTable) {
                     throw new \RuntimeException('لا يمكن نقل المتوفين الإضافيين لأن الجدول غير متوفر.');
                 }
+                if ($failOnUnsupportedData) {
+                    $this->assertDeceasedRoleCanBeConverted($row, $role);
+                }
 
                 $payload = [
                     're_file_id' => $normalizedTo,
@@ -496,6 +513,15 @@ class GuardianDuplicateMergeService
                     'death_reason' => $row->{$role . '_death_reason'},
                     'created_at' => now(),
                 ];
+                $additionalColumns = Schema::getColumnListing('additional_deceased');
+                foreach (Schema::getColumnListing('dead_people') as $column) {
+                    if (in_array($column, ['id', 're_file_id', 'created_at', 'updated_at'], true)
+                        || array_key_exists($column, $payload)
+                        || !in_array($column, $additionalColumns, true)) {
+                        continue;
+                    }
+                    $payload[$column] = $row->{$column};
+                }
                 DB::table('additional_deceased')->insert($this->withTimestamp('additional_deceased', $payload));
                 if (!$this->isEmptyValue($identity)) {
                     $targetIdentities[$identity] = true;
@@ -534,8 +560,20 @@ class GuardianDuplicateMergeService
 
     protected function hasDeceasedPerson(object $row, string $role): bool
     {
-        foreach ($this->deceasedRoleColumns($role) as $column) {
-            if (!$this->isEmptyValue($row->{$column} ?? null)) {
+        foreach (get_object_vars($row) as $column => $value) {
+            if (str_starts_with($column, $role.'_') && !$this->isEmptyValue($value)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    protected function hasDeceasedRowData(object $row): bool
+    {
+        foreach (get_object_vars($row) as $column => $value) {
+            if (!in_array($column, ['id', 're_file_id', 'created_at', 'updated_at'], true)
+                && !$this->isEmptyValue($value)) {
                 return true;
             }
         }
@@ -545,13 +583,26 @@ class GuardianDuplicateMergeService
 
     protected function hasAdditionalDeceasedPerson(object $row): bool
     {
-        foreach (['first_name', 'second_name', 'third_name', 'last_name', 'person_id', 'death_date', 'death_reason'] as $column) {
+        return $this->hasDeceasedRowData($row);
+    }
+
+    protected function assertDeceasedRoleCanBeConverted(object $row, string $role): void
+    {
+        $additionalColumns = Schema::getColumnListing('additional_deceased');
+        $representedColumns = array_merge(
+            ['id', 're_file_id', 'created_at', 'updated_at'],
+            $this->deceasedRoleColumns('father'),
+            $this->deceasedRoleColumns('mother')
+        );
+
+        foreach (Schema::getColumnListing('dead_people') as $column) {
+            if (in_array($column, $representedColumns, true) || in_array($column, $additionalColumns, true)) {
+                continue;
+            }
             if (!$this->isEmptyValue($row->{$column} ?? null)) {
-                return true;
+                throw new \RuntimeException('لا يمكن نقل المتوفين تلقائياً لأن بعض بياناتهم لا يمكن حفظها في سجل المتوفين الإضافيين؛ لم يتم تنفيذ التحويل.');
             }
         }
-
-        return false;
     }
 
     protected function deceasedRoleColumns(string $role): array

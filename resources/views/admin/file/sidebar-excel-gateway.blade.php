@@ -2374,16 +2374,25 @@
 
             } else {
                 // عرض رسالة الخطأ
+                const entities = {
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#039;'
+                };
+                const escapeErrorText = value => String(value ?? '').replace(/[&<>"']/g, character => entities[character]);
+                const errorMessage = data.message || data.error || 'تعذّر إكمال الاستيراد. يرجى المحاولة مرة أخرى.';
                 let errorHtml = `
                         <div style="text-align: right; direction: rtl;">
                             <h4>تفاصيل الخطأ:</h4>
-                            <p>${data.message}</p>
+                            <p>${escapeErrorText(errorMessage)}</p>
                     `;
 
                 if (data.errors && Array.isArray(data.errors)) {
                     errorHtml += `<ul style="text-align: right;">`;
                     data.errors.forEach(error => {
-                        errorHtml += `<li>${error}</li>`;
+                        errorHtml += `<li>${escapeErrorText(error)}</li>`;
                     });
                     errorHtml += `</ul>`;
                 }

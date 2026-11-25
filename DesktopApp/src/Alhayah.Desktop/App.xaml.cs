@@ -1,6 +1,7 @@
 using System.Windows;
 using Alhayah.Desktop.Services;
 using Alhayah.Desktop.Services.Interfaces;
+using Alhayah.Desktop.Utilities;
 using Alhayah.Desktop.ViewModels;
 using Alhayah.Desktop.Views;
 using Microsoft.Extensions.DependencyInjection;
@@ -32,7 +33,15 @@ public partial class App : Application
 
     private static void ConfigureServices(IServiceCollection services)
     {
-        services.AddSingleton<IDesktopIpcClient, FakeDesktopIpcClient>();
+        services.AddSingleton<SyncServiceClient>();
+        services.AddSingleton<ISyncServiceClient>(provider => provider.GetRequiredService<SyncServiceClient>());
+        services.AddSingleton<IDesktopIpcClient>(provider => provider.GetRequiredService<SyncServiceClient>());
+        services.AddSingleton<ILocalAuthService, LocalAuthService>();
+        services.AddSingleton<IConnectionSettingsService, ConnectionSettingsService>();
+        services.AddSingleton<IAppLogger>(_ => new AppLogger());
+        services.AddSingleton<IBackupClient, BackupClient>();
+        services.AddSingleton<IRestoreClient, RestoreClient>();
+        services.AddTransient<ConnectionSettingsViewModel>();
         services.AddTransient<MainViewModel>();
         services.AddTransient<MainWindow>();
     }

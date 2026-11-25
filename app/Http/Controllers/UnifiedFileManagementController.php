@@ -5459,7 +5459,9 @@ class UnifiedFileManagementController extends Controller
                 'success' => $validationResult['success'],
                 'can_proceed' => $validationResult['can_proceed'] ?? false,
                 'validation_result' => $validationResult,
-                'message' => $validationResult['message'] ?? 'تم الفحص بنجاح',
+                'message' => $validationResult['message']
+                    ?? $validationResult['error']
+                    ?? ($validationResult['success'] ? 'تم الفحص بنجاح' : 'تعذر إكمال فحص ملف Excel'),
                 'file_name' => $file->getClientOriginalName(),
                 'validation_id' => $validationId // معرف فريد لاسترجاع النتائج
             ]);

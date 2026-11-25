@@ -7,6 +7,7 @@ use App\Models\Data;
 use App\Models\MemberTransferRequest;
 use App\Models\RePeople;
 use App\Services\FamilyMemberTransferService;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -103,18 +104,35 @@ class MemberTransferRequestController extends Controller
                 ]);
             }
 
-            $moved = $transferService->approvePendingTransfer($transfer, auth()->id());
+            if ($transfer->isGuardianAsMember()) {
+                $moved = $transferService->approveGuardianAsMember($transfer, auth()->id());
 
-            $remaining = MemberTransferRequest::pending()
-                ->where('file_id_number', $transfer->file_id_number)
-                ->count();
+                return response()->json([
+                    'success' => true,
+                    'message' => 'تم نقل المعيل «' . $moved['person_id'] . '» وأسرته ووفياته إلى ملف ' . $moved['to_file'] . ' وحُذف ملفه الأصلي مع حفظ المرفقات.',
+                    'remaining_pending' => $moved['remaining_pending'],
+                    'can_accept_file' => $moved['remaining_pending'] === 0,
+                ]);
+            }
+
+            $moved = $transferService->approvePendingTransfer($transfer, auth()->id());
 
             return response()->json([
                 'success' => true,
                 'message' => 'تم نقل «' . $moved['person_id'] . '» إلى ملف ' . $moved['to_file'] . ' بنجاح.',
-                'remaining_pending' => $remaining,
-                'can_accept_file' => $remaining === 0,
+                'remaining_pending' => $moved['remaining_pending'],
+                'can_accept_file' => $moved['remaining_pending'] === 0,
             ]);
+        } catch (QueryException $e) {
+            Log::error('خطأ في قاعدة البيانات عند تنفيذ نقل فرد: ' . $e->getMessage(), [
+                'transfer_request_id' => $transfer->id,
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'تعذّر تنفيذ النقل بسبب خطأ في حفظ البيانات. لم يتم إجراء أي تغيير.',
+            ], 500);
         } catch (\RuntimeException $e) {
             // الفرد لم يعد في ملف المصدر: تُسجَّل failed خارج المعاملة،
             // وبقيد مشروط بحالة pending حتى لا يُلغى طلب نُقل فعلاً في سباق تزامني.
@@ -200,7 +218,9 @@ class MemberTransferRequestController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'تم رفض طلب النقل، وبقي الفرد في ملف معيله الحالي.',
+            'message' => $transfer->isGuardianAsMember()
+                ? 'تم رفض طلب التحويل؛ لم يُضف الشخص إلى الأسرة الجديدة وبقي ملف معيله الأصلي كما هو.'
+                : 'تم رفض طلب النقل، وبقي الفرد في ملف معيله الحالي.',
         ]);
     }
 }

@@ -1,0 +1,340 @@
+<UserControl x:Class="Alhayah.Desktop.Views.ConnectionSettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             FlowDirection="RightToLeft"
+             FontFamily="{StaticResource AppFontFamily}">
+    <UserControl.Resources>
+        <Style x:Key="CardStyle" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="20" />
+            <Setter Property="Margin" Value="0,0,0,16" />
+        </Style>
+        <Style x:Key="SectionTitleStyle" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+            <Setter Property="FontSize" Value="18" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}" />
+            <Setter Property="Margin" Value="0,0,0,12" />
+        </Style>
+        <Style x:Key="FieldLabelStyle" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Margin" Value="0,12,0,6" />
+        </Style>
+        <Style x:Key="HintStyle" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Margin" Value="0,5,0,0" />
+        </Style>
+        <Style x:Key="SecondaryButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource SecondaryBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+        <Style x:Key="TechnicalTextBoxStyle" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+            <Setter Property="FlowDirection" Value="LeftToRight" />
+            <Setter Property="TextAlignment" Value="Left" />
+        </Style>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled">
+        <StackPanel>
+            <TextBlock FontSize="{StaticResource TitleFontSize}"
+                       FontWeight="SemiBold"
+                       Text="إعدادات الاتصال والمزامنة" />
+            <TextBlock Margin="0,8,0,20"
+                       Foreground="{StaticResource TextMutedBrush}"
+                       Text="الحفظ مستقل عن فحص الشبكة، وتبقى جميع الأعمال المحلية متاحة عند تعذر الاتصال." />
+
+            <Grid x:Name="SettingsInputPanel" IsEnabled="{Binding IsAdministrator}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0" Margin="0,0,0,16" Style="{StaticResource CardStyle}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource SectionTitleStyle}" Text="موقع Laravel" />
+                        <TextBlock Style="{StaticResource FieldLabelStyle}" Text="اسم الاتصال" />
+                        <TextBox Text="{Binding ConnectionName, UpdateSourceTrigger=PropertyChanged}" />
+
+                        <TextBlock Style="{StaticResource FieldLabelStyle}" Text="عنوان موقع Laravel" />
+                        <TextBox x:Name="LaravelEndpointTextBox"
+                                 Style="{StaticResource TechnicalTextBoxStyle}"
+                                 Text="{Binding LaravelEndpoint, UpdateSourceTrigger=PropertyChanged}" />
+
+                        <TextBlock Style="{StaticResource FieldLabelStyle}" Text="بصمة SPKI SHA-256 الحالية" />
+                        <TextBox x:Name="LaravelSpkiPinTextBox"
+                                 MaxLength="64"
+                                 Style="{StaticResource TechnicalTextBoxStyle}"
+                                 Text="{Binding LaravelSpkiSha256Pin, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBlock Style="{StaticResource HintStyle}" Text="64 محرفاً سداسياً. التحقق من الشهادة والبصمة إلزامي." />
+
+                        <TextBlock Style="{StaticResource FieldLabelStyle}" Text="البصمة السابقة أثناء التدوير المتداخل" />
+                        <TextBox x:Name="PreviousLaravelSpkiPinTextBox"
+                                 MaxLength="64"
+                                 Style="{StaticResource TechnicalTextBoxStyle}"
+                                 Text="{Binding PreviousLaravelSpkiSha256Pin, UpdateSourceTrigger=PropertyChanged}" />
+
+                        <TextBlock Style="{StaticResource FieldLabelStyle}" Text="رمز جهاز Laravel المؤقت" />
+                        <PasswordBox x:Name="LaravelTokenPasswordBox"
+                                     Height="38"
+                                     Padding="10,5"
+                                     FlowDirection="LeftToRight"
+                                     PasswordChar="●"
+                                     PasswordChanged="OnLaravelTokenChanged" />
+                        <TextBlock Style="{StaticResource HintStyle}" Text="يُرسل عبر IPC عند الحفظ فقط، ثم يُمسح من الواجهة ولا يُعاد من الخدمة." />
+
+                        <Button Margin="0,16,0,0"
+                                HorizontalAlignment="Right"
+                                Command="{Binding CheckLaravelConnectionCommand}"
+                                Content="فحص اتصال Laravel"
+                                Style="{StaticResource SecondaryButtonStyle}" />
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="1" Margin="16,0,0,16" Style="{StaticResource CardStyle}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource SectionTitleStyle}" Text="السيرفر المحلي" />
+                        <TextBlock Style="{StaticResource FieldLabelStyle}" Text="اسم السيرفر المحلي" />
+                        <TextBox x:Name="LocalServerHostTextBox"
+                                 Style="{StaticResource TechnicalTextBoxStyle}"
+                                 Text="{Binding LocalServerHost, UpdateSourceTrigger=PropertyChanged}" />
+
+                        <TextBlock Style="{StaticResource FieldLabelStyle}" Text="المنفذ" />
+                        <TextBox x:Name="LocalServerPortTextBox"
+                                 MaxLength="5"
+                                 Style="{StaticResource TechnicalTextBoxStyle}"
+                                 Text="{Binding LocalServerPort, UpdateSourceTrigger=PropertyChanged}" />
+
+                        <TextBlock Style="{StaticResource FieldLabelStyle}" Text="بصمة SPKI SHA-256 الحالية" />
+                        <TextBox x:Name="LocalServerSpkiPinTextBox"
+                                 MaxLength="64"
+                                 Style="{StaticResource TechnicalTextBoxStyle}"
+                                 Text="{Binding LocalServerSpkiSha256Pin, UpdateSourceTrigger=PropertyChanged}" />
+
+                        <TextBlock Style="{StaticResource FieldLabelStyle}" Text="البصمة السابقة أثناء التدوير المتداخل" />
+                        <TextBox x:Name="PreviousLocalServerSpkiPinTextBox"
+                                 MaxLength="64"
+                                 Style="{StaticResource TechnicalTextBoxStyle}"
+                                 Text="{Binding PreviousLocalServerSpkiSha256Pin, UpdateSourceTrigger=PropertyChanged}" />
+
+                        <TextBlock Style="{StaticResource FieldLabelStyle}" Text="اعتماد جهاز السيرفر المحلي المؤقت" />
+                        <PasswordBox x:Name="LocalCredentialPasswordBox"
+                                     Height="38"
+                                     Padding="10,5"
+                                     FlowDirection="LeftToRight"
+                                     PasswordChar="●"
+                                     PasswordChanged="OnLocalCredentialChanged" />
+                        <TextBlock Style="{StaticResource HintStyle}" Text="لا ينشئ التطبيق مخزن أسرار؛ التخزين الدائم مسؤولية SyncService عبر IPC." />
+
+                        <Button Margin="0,16,0,0"
+                                HorizontalAlignment="Right"
+                                Command="{Binding CheckLocalServerConnectionCommand}"
+                                Content="فحص السيرفر المحلي"
+                                Style="{StaticResource SecondaryButtonStyle}" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <Border Style="{StaticResource CardStyle}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionTitleStyle}" Text="سياسة الطلبات والمزامنة" />
+                    <Grid IsEnabled="{Binding IsAdministrator}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Margin="0,0,0,0">
+                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="مهلة الطلب بالثواني" />
+                            <TextBox Width="180"
+                                     HorizontalAlignment="Right"
+                                     Style="{StaticResource TechnicalTextBoxStyle}"
+                                     Text="{Binding RequestTimeoutSeconds, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+                        <CheckBox Grid.Column="1"
+                                  Margin="16,20,0,0"
+                                  VerticalAlignment="Center"
+                                  FontFamily="{StaticResource AppFontFamily}"
+                                  Content="تفعيل المزامنة التلقائية"
+                                  IsChecked="{Binding SynchronizationEnabled}" />
+                    </Grid>
+                    <TextBlock Style="{StaticResource HintStyle}"
+                               Text="HTTPS والتحقق من الشهادات وبصمات SPKI إلزامية في كل الاتصالات." />
+                    <StackPanel Margin="0,16,0,0" Orientation="Horizontal">
+                        <Button x:Name="SaveSettingsButton"
+                                Command="{Binding SaveCommand}"
+                                Content="حفظ الإعدادات"
+                                IsEnabled="{Binding IsAdministrator}"
+                                Style="{StaticResource PrimaryButtonStyle}" />
+                        <Button x:Name="RestoreDefaultsButton"
+                                Margin="10,0,0,0"
+                                Command="{Binding RestoreDefaultsCommand}"
+                                Content="استعادة افتراضيات الاتصال"
+                                IsEnabled="{Binding IsAdministrator}"
+                                Style="{StaticResource SecondaryButtonStyle}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource CardStyle}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionTitleStyle}" Text="نتيجة فحص الاتصال" />
+                    <ItemsControl ItemsSource="{Binding ConnectionCheckStages}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="{Binding StageName}" />
+                                    <TextBlock Grid.Column="1"
+                                               Margin="12,0"
+                                               FontWeight="SemiBold"
+                                               Text="{Binding StatusText}" />
+                                    <TextBlock Grid.Column="2"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               Text="{Binding ErrorCode}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Style="{StaticResource HintStyle}"
+                               Text="الفحص يمر بمراحل DNS وTCP وTLS والمصادقة والتوافق عبر SyncService فقط." />
+                </StackPanel>
+            </Border>
+
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Border Grid.Column="0" Style="{StaticResource CardStyle}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource SectionTitleStyle}" Text="مزامنة موقع Laravel" />
+                        <TextBlock Text="{Binding LastLaravelSynchronizationText}" />
+                        <Button Margin="0,14,0,0"
+                                HorizontalAlignment="Right"
+                                Command="{Binding SynchronizeLaravelNowCommand}"
+                                Content="مزامنة Laravel الآن"
+                                IsEnabled="{Binding CanSynchronize}"
+                                Style="{StaticResource PrimaryButtonStyle}" />
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="1" Margin="16,0,0,16" Style="{StaticResource CardStyle}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource SectionTitleStyle}" Text="مزامنة السيرفر المحلي" />
+                        <TextBlock Text="{Binding LastLocalServerSynchronizationText}" />
+                        <Button Margin="0,14,0,0"
+                                HorizontalAlignment="Right"
+                                Command="{Binding SynchronizeLocalServerNowCommand}"
+                                Content="مزامنة السيرفر الآن"
+                                IsEnabled="{Binding CanSynchronize}"
+                                Style="{StaticResource PrimaryButtonStyle}" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <Border Style="{StaticResource CardStyle}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionTitleStyle}" Text="النسخ الاحتياطي والاستعادة إلى وجهة تحقق" />
+                    <TextBlock Foreground="{StaticResource TextMutedBrush}"
+                               Text="تمر العمليات عبر SyncService فقط. تنشئ الاستعادة نسخة تحقق جديدة، وترفض الخدمة الكتابة فوق مخزن الجهاز الحي أو أي وجهة موجودة." />
+                    <Grid Margin="0,16,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" IsEnabled="{Binding CanBackup}">
+                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="مجلد النسخ الاحتياطي الاختياري" />
+                            <TextBox x:Name="BackupDestinationTextBox"
+                                     Style="{StaticResource TechnicalTextBoxStyle}"
+                                     Text="{Binding BackupDestinationDirectory, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Style="{StaticResource HintStyle}"
+                                       Text="اتركه فارغاً لاستخدام مجلد النسخ المكون في الخدمة المحلية." />
+                            <Button x:Name="CreateBackupButton"
+                                    Margin="0,14,0,0"
+                                    HorizontalAlignment="Right"
+                                    Command="{Binding CreateBackupCommand}"
+                                    Content="إنشاء نسخة احتياطية"
+                                    IsEnabled="{Binding CanBackup}"
+                                    Style="{StaticResource PrimaryButtonStyle}" />
+                            <TextBlock Margin="0,10,0,0" Text="{Binding BackupStatusMessage}" />
+                            <TextBlock x:Name="BackupResultPathText"
+                                       FlowDirection="LeftToRight"
+                                       TextAlignment="Left"
+                                       Text="{Binding BackupResultPath}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Margin="16,0,0,0" IsEnabled="{Binding CanRestore}">
+                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="مجلد النسخة المصدر" />
+                            <TextBox x:Name="RestoreBackupDirectoryTextBox"
+                                     Style="{StaticResource TechnicalTextBoxStyle}"
+                                     Text="{Binding RestoreBackupDirectory, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="مسار قاعدة بيانات الوجهة الجديدة" />
+                            <TextBox x:Name="RestoreDatabasePathTextBox"
+                                     Style="{StaticResource TechnicalTextBoxStyle}"
+                                     Text="{Binding RestoreDestinationDatabasePath, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="مجلد مرفقات الوجهة الجديد" />
+                            <TextBox x:Name="RestoreAttachmentDirectoryTextBox"
+                                     Style="{StaticResource TechnicalTextBoxStyle}"
+                                     Text="{Binding RestoreDestinationAttachmentDirectory, UpdateSourceTrigger=PropertyChanged}" />
+                            <Button x:Name="RestoreBackupButton"
+                                    Margin="0,14,0,0"
+                                    HorizontalAlignment="Right"
+                                    Command="{Binding RestoreBackupCommand}"
+                                    Content="استعادة إلى وجهة تحقق"
+                                    IsEnabled="{Binding CanRestore}"
+                                    Style="{StaticResource SecondaryButtonStyle}" />
+                            <TextBlock Margin="0,10,0,0" Text="{Binding RestoreStatusMessage}" />
+                            <TextBlock x:Name="RestoreResultDatabasePathText"
+                                       FlowDirection="LeftToRight"
+                                       TextAlignment="Left"
+                                       Text="{Binding RestoreResultDatabasePath}" />
+                            <TextBlock x:Name="RestoreResultAttachmentPathText"
+                                       FlowDirection="LeftToRight"
+                                       TextAlignment="Left"
+                                       Text="{Binding RestoreResultAttachmentDirectory}" />
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource CardStyle}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionTitleStyle}" Text="الأعمال المعلقة والتعارضات" />
+                    <TextBlock Text="{Binding OutboxStatusText}" />
+                    <Border x:Name="ConflictReviewPanel"
+                            Margin="0,14,0,0"
+                            Padding="12"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            IsEnabled="{Binding CanResolveConflicts}">
+                        <StackPanel>
+                            <TextBlock Text="{Binding ConflictStatusText}" />
+                            <ItemsControl Margin="0,8,0,0" ItemsSource="{Binding Conflicts}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Margin="0,4">
+                                            <TextBlock Text="{Binding EntityType}" />
+                                            <TextBlock Foreground="{StaticResource TextMutedBrush}" Text="{Binding ConflictClass}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <TextBlock Margin="0,0,0,12"
+                       Foreground="{StaticResource SecondaryBrush}"
+                       Text="{Binding StatusMessage}" />
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

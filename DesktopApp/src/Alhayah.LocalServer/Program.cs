@@ -2,6 +2,7 @@ using System.Security.Cryptography.X509Certificates;
 using Alhayah.Contracts.Domain;
 using Alhayah.LocalServer.Authentication;
 using Alhayah.LocalServer.Data;
+using Alhayah.LocalServer.Hubs;
 using Alhayah.LocalServer.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Server.Kestrel.Https;
@@ -87,6 +88,11 @@ builder.Services.AddSingleton<LocalBackupService>();
 builder.Services.AddScoped<LocalMigrationService>();
 builder.Services.AddSingleton<EncryptedAttachmentStore>();
 builder.Services.AddScoped<DeviceRegistryService>();
+builder.Services.AddScoped<LocalChangeFeedService>();
+builder.Services.AddScoped<ConflictService>();
+builder.Services.AddScoped<IdempotencyService>();
+builder.Services.AddScoped<VoucherNumberAllocator>();
+builder.Services.AddSingleton<ILocalSyncNotifier, SignalRLocalSyncNotifier>();
 builder.Services.AddAuthentication(DeviceAuthHandler.SchemeName)
     .AddScheme<DeviceAuthenticationOptions, DeviceAuthHandler>(DeviceAuthHandler.SchemeName, _ => { });
 builder.Services.AddAuthorization(options =>
@@ -110,6 +116,7 @@ builder.Services.AddAuthorization(options =>
         .RequireClaim(DeviceClaimTypes.Permission, LocalPermissionNames.Admin));
 });
 builder.Services.AddControllers();
+builder.Services.AddSignalR();
 
 WebApplication app = builder.Build();
 
@@ -133,6 +140,7 @@ app.Use(async (context, next) =>
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapHub<LocalSyncHub>("/local/hubs/sync");
 
 try
 {

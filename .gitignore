@@ -96,6 +96,12 @@ tests/Feature/WhatsAppAdminPanelTest.php
 /tests/Feature/*
 !/tests/Feature/DocumentEnhancementTest.php
 !/tests/Feature/AdminDocumentEnhancementTest.php
+!/tests/Feature/ExcelGatewayImportTest.php
+!/tests/Feature/PublicRegistrationValidationTest.php
+!/tests/Unit/
+/tests/Unit/*
+!/tests/Unit/ExcelValidationServiceTest.php
+!/tests/excel-gateway-error-handling.test.mjs
 !/tests/python/
 /tests/python/*
 !/tests/python/test_document_enhance.py

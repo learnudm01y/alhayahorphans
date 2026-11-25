@@ -11,6 +11,7 @@ class Attachment extends Model
 
     protected $fillable = [
         'person_identity_number',
+        'record_number',
         'stored_file_name',
         'file_path',
         'file_type',

@@ -10,5 +10,6 @@ public partial class MainWindow : Window
         ArgumentNullException.ThrowIfNull(viewModel);
         InitializeComponent();
         DataContext = viewModel;
+        ConnectionSettingsHost.Content = new ConnectionSettingsView(viewModel.ConnectionSettings);
     }
 }

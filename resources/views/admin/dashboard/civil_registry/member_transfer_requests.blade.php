@@ -64,6 +64,7 @@
                                 @php
                                     $snapshot = is_array($row->member_snapshot) ? $row->member_snapshot : [];
                                     $isPromotion = $row->isGuardianPromotion();
+                                    $isGuardianAsMember = $row->isGuardianAsMember();
                                     $registration = $isPromotion ? ($snapshot['registration'] ?? []) : [];
                                     $memberName = trim(collect([
                                         $snapshot['first_name'] ?? null,
@@ -73,8 +74,12 @@
                                     ])->filter()->implode(' '));
                                     $target = $guardians->get((int) $row->file_id_number);
                                     $source = $row->source_file_id_number ? $guardians->get((int) $row->source_file_id_number) : null;
-                                    $memberStillInSource = $liveMembers
-                                        ->has(ltrim(trim((string) $row->source_file_id_number), '0') . '|' . ltrim(trim((string) $row->identity_number), '0'));
+                                    $memberStillInSource = $isGuardianAsMember
+                                        ? $source !== null
+                                        : $liveMembers->has(ltrim(trim((string) $row->source_file_id_number), '0') . '|' . ltrim(trim((string) $row->identity_number), '0'));
+                                    $requestTypeLabel = $isPromotion
+                                        ? 'تحويل فرد إلى معيل مستقل'
+                                        : ($isGuardianAsMember ? 'تحويل معيل إلى فرد أسرة' : 'نقل فرد بين معيلين');
                                     $canAct = $row->status === \App\Models\MemberTransferRequest::STATUS_PENDING;
                                 @endphp
                                 <tr>
@@ -82,7 +87,7 @@
                                     <td>
                                         <div class="fw-bold">{{ $memberName !== '' ? $memberName : 'بدون اسم مُرسل' }}</div>
                                         <small class="text-muted">الهوية: {{ $row->identity_number }}</small>
-                                        <div><span class="badge {{ $isPromotion ? 'badge-primary' : 'badge-info' }}">{{ $isPromotion ? 'تحويل فرد إلى معيل مستقل' : 'نقل فرد بين معيلين' }}</span></div>
+                                        <div><span class="badge {{ $isPromotion ? 'badge-primary' : ($isGuardianAsMember ? 'badge-warning' : 'badge-info') }}">{{ $requestTypeLabel }}</span></div>
                                         @if($isPromotion)
                                             <details class="mt-2">
                                                 <summary>بيانات طلب التسجيل</summary>
@@ -126,7 +131,7 @@
                                                 <span class="badge badge-warning">معلّق</span>
                                                 @break
                                             @case('approved')
-                                                <span class="badge badge-success">{{ $isPromotion ? 'تم التحويل إلى معيل' : 'منقول' }}</span>
+                                                <span class="badge badge-success">{{ $isPromotion ? 'تم التحويل إلى معيل' : ($isGuardianAsMember ? 'تمت الإضافة ونقل الأسرة' : 'منقول') }}</span>
                                                 @break
                                             @case('rejected')
                                                 <span class="badge badge-danger">مرفوض</span>
@@ -150,13 +155,15 @@
                                             @can('تعديل سجل')
                                             <button type="button" class="btn btn-sm btn-success approve-transfer"
                                                     data-promotion="{{ $isPromotion ? '1' : '0' }}"
+                                                    data-guardian-as-member="{{ $isGuardianAsMember ? '1' : '0' }}"
                                                     data-id="{{ $row->id }}"
                                                     data-member="{{ $memberName !== '' ? $memberName : $row->identity_number }}"
                                                     data-from="{{ str_pad((string) $row->source_file_id_number, 6, '0', STR_PAD_LEFT) }}"
                                                     data-to="{{ str_pad((string) $row->file_id_number, 6, '0', STR_PAD_LEFT) }}">
-                                                <i class="fas fa-check"></i> {{ $isPromotion ? 'موافقة وتحويل إلى معيل' : 'موافقة ونقل' }}
+                                                <i class="fas fa-check"></i> {{ $isPromotion ? 'موافقة وتحويل إلى معيل' : ($isGuardianAsMember ? 'موافقة ونقل الأسرة' : 'موافقة ونقل') }}
                                             </button>
                                             <button type="button" class="btn btn-sm btn-danger reject-transfer"
+                                                    data-guardian-as-member="{{ $isGuardianAsMember ? '1' : '0' }}"
                                                     data-id="{{ $row->id }}"
                                                     data-member="{{ $memberName !== '' ? $memberName : $row->identity_number }}">
                                                 <i class="fas fa-times"></i> رفض
@@ -223,14 +230,17 @@
             var id = button.data('id');
 
             var promotion = String(button.data('promotion')) === '1';
+            var guardianAsMember = String(button.data('guardian-as-member')) === '1';
             Swal.fire({
-                title: promotion ? 'تأكيد التحويل إلى معيل مستقل' : 'تأكيد النقل',
-                text: promotion
-                    ? 'سيُفك ارتباط «' + button.data('member') + '» كفرد من ملف ' + button.data('from') + ' ويُنشأ له ملف معيل مستقل ببيانات التسجيل ومرفقاته. نقل أفراد أسرته المرتبطين بملفات أخرى يحتاج موافقات منفصلة.'
-                    : 'سيُنقل الرابط فقط: الفرد «' + button.data('member') + '» من ملف ' + button.data('from') + ' إلى ملف ' + button.data('to') + '. لا تُعدَّل أي بيانات أخرى.',
+                title: guardianAsMember ? 'تأكيد تحويل المعيل إلى فرد أسرة' : (promotion ? 'تأكيد التحويل إلى معيل مستقل' : 'تأكيد النقل'),
+                text: guardianAsMember
+                    ? 'سيُنقل المعيل «' + button.data('member') + '» وأسرته ووفياته إلى ملف ' + button.data('to') + '، ثم يُحذف ملف المعيل الأصلي ' + button.data('from') + ' مع حفظ جميع المرفقات.'
+                    : (promotion
+                        ? 'سيُفك ارتباط «' + button.data('member') + '» كفرد من ملف ' + button.data('from') + ' ويُنشأ له ملف معيل مستقل ببيانات التسجيل ومرفقاته. نقل أفراد أسرته المرتبطين بملفات أخرى يحتاج موافقات منفصلة.'
+                        : 'سيُنقل الرابط فقط: الفرد «' + button.data('member') + '» من ملف ' + button.data('from') + ' إلى ملف ' + button.data('to') + '. لا تُعدَّل أي بيانات أخرى.'),
                 icon: 'warning',
                 showCancelButton: true,
-                confirmButtonText: promotion ? 'نعم، حوّل إلى معيل' : 'نعم، انقل',
+                confirmButtonText: guardianAsMember ? 'نعم، انقل الأسرة واحذف المصدر' : (promotion ? 'نعم، حوّل إلى معيل' : 'نعم، انقل'),
                 cancelButtonText: 'إلغاء'
             }).then(function (result) {
                 if (!result.isConfirmed) return;
@@ -255,12 +265,15 @@
         $(document).on('click', '.reject-transfer', function () {
             var button = $(this);
             var id = button.data('id');
+            var guardianAsMember = String(button.data('guardian-as-member')) === '1';
 
             Swal.fire({
-                title: 'رفض طلب النقل',
+                title: guardianAsMember ? 'رفض طلب تحويل المعيل' : 'رفض طلب النقل',
                 input: 'text',
                 inputPlaceholder: 'سبب الرفض (اختياري)',
-                text: 'سيبقى الفرد «' + button.data('member') + '» في ملف معيله الحالي.',
+                text: guardianAsMember
+                    ? 'لن يُضاف «' + button.data('member') + '» إلى الأسرة الجديدة، وسيبقى ملف معيله الأصلي كما هو.'
+                    : 'سيبقى الفرد «' + button.data('member') + '» في ملف معيله الحالي.',
                 icon: 'question',
                 showCancelButton: true,
                 confirmButtonText: 'رفض',

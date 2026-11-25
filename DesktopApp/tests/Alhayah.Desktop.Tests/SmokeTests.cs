@@ -1,6 +1,7 @@
 using System.Windows;
 using Alhayah.Desktop.Models;
 using Alhayah.Desktop.Services;
+using Alhayah.Desktop.Services.Interfaces;
 using Alhayah.Desktop.ViewModels;
 using Alhayah.Desktop.Views;
 using Xunit;
@@ -14,7 +15,7 @@ public sealed class SmokeTests
     {
         EnsureApplicationResources();
         FakeDesktopIpcClient ipcClient = new();
-        MainViewModel viewModel = new(ipcClient);
+        MainViewModel viewModel = CreateMainViewModel(ipcClient);
         MainWindow window = new(viewModel);
 
         try
@@ -38,7 +39,7 @@ public sealed class SmokeTests
     {
         EnsureApplicationResources();
         FakeDesktopIpcClient ipcClient = new();
-        MainViewModel viewModel = new(ipcClient);
+        MainViewModel viewModel = CreateMainViewModel(ipcClient);
         MainWindow window = new(viewModel);
 
         try
@@ -63,7 +64,7 @@ public sealed class SmokeTests
     public async Task SaveSettingsCommand_WithSyntheticValue_RoundTripsThroughFakeIpc()
     {
         FakeDesktopIpcClient ipcClient = new();
-        MainViewModel viewModel = new(ipcClient);
+        MainViewModel viewModel = CreateMainViewModel(ipcClient);
         viewModel.NavigateToSettingsCommand.Execute(null);
         viewModel.ConnectionName = "اتصال تجريبي اصطناعي";
 
@@ -72,6 +73,20 @@ public sealed class SmokeTests
         DesktopSettings savedSettings = await ipcClient.GetSettingsAsync();
         Assert.Equal("اتصال تجريبي اصطناعي", savedSettings.ConnectionName);
         Assert.Equal("تم حفظ الإعداد التجريبي دون اتصال", viewModel.StatusMessage);
+    }
+
+    private static MainViewModel CreateMainViewModel(IDesktopIpcClient ipcClient)
+    {
+        SyncServiceClient client = new();
+        LocalAuthService authentication = new(client);
+        ConnectionSettingsService service = new(client, authentication);
+        return new MainViewModel(
+            ipcClient,
+            new ConnectionSettingsViewModel(
+                service,
+                authentication,
+                new BackupClient(client, NullAppLogger.Instance),
+                new RestoreClient(client, NullAppLogger.Instance)));
     }
 
     private static void EnsureApplicationResources()

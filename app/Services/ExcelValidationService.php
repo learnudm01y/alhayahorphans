@@ -108,6 +108,7 @@ class ExcelValidationService
 
             return [
                 'success' => false,
+                'message' => $e->getMessage(),
                 'error' => $e->getMessage(),
                 'errors' => $this->errors,
                 'can_proceed' => false,
@@ -178,11 +179,13 @@ class ExcelValidationService
                 'data_displacement_status' => 'data_displacement_status',
                 'data_address_before_displacement' => 'data_address_before_displacement',
                 'data_current_address' => 'data_current_address',
+                'data_current_adress' => 'data_current_address',
                 'data_city' => 'data_city',
                 'data_province' => 'data_province',
                 'data_health_status' => 'data_health_status',
                 'data_description_needs' => 'data_description_needs',
                 'data_number_mail' => 'data_number_mail',
+                'data_number_male' => 'data_number_mail',
                 'data_number_female' => 'data_number_female',
                 'data_number_of_individuals_with_chronic_diseases' => 'data_number_of_individuals_with_chronic_diseases',
                 'data_number_of_people_with_special_needs' => 'data_number_of_people_with_special_needs',
@@ -255,11 +258,17 @@ class ExcelValidationService
      */
     protected function validateHeaders($headers, $columnMapping, $tableName)
     {
-        $requiredColumns = array_keys($columnMapping);
+        $requiredColumns = [
+            'data' => ['data_id_number', 'data_birth_date'],
+            'dead_people' => ['re_file_id'],
+            're_people' => ['registration_id', 'person_id'],
+        ][$tableName] ?? [];
         $missingColumns = [];
 
         foreach ($requiredColumns as $required) {
-            if (!in_array($required, $headers)) {
+            $aliases = array_keys($columnMapping, $required, true);
+
+            if (empty(array_intersect($aliases, $headers))) {
                 $missingColumns[] = $required;
             }
         }

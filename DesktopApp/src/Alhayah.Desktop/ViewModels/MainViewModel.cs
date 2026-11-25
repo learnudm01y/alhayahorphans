@@ -16,11 +16,14 @@ public sealed class MainViewModel : ViewModelBase
     private string _connectionName = string.Empty;
     private string _statusMessage = "جاهز للعمل دون اتصال";
 
-    public MainViewModel(IDesktopIpcClient ipcClient)
+    public MainViewModel(
+        IDesktopIpcClient ipcClient,
+        ConnectionSettingsViewModel connectionSettings)
     {
         _ipcClient = ipcClient ?? throw new ArgumentNullException(nameof(ipcClient));
+        ConnectionSettings = connectionSettings ?? throw new ArgumentNullException(nameof(connectionSettings));
         NavigateToDashboardCommand = new RelayCommand(() => SelectedSection = AppSection.Dashboard);
-        NavigateToSettingsCommand = new RelayCommand(() => SelectedSection = AppSection.ConnectionSettings);
+        NavigateToSettingsCommand = new AsyncRelayCommand(NavigateToSettingsAsync);
         SaveSettingsCommand = new AsyncRelayCommand(SaveSettingsAsync);
     }
 
@@ -43,6 +46,8 @@ public sealed class MainViewModel : ViewModelBase
 
     public bool IsSettingsSelected => SelectedSection == AppSection.ConnectionSettings;
 
+    public ConnectionSettingsViewModel ConnectionSettings { get; }
+
     public string ConnectionName
     {
         get => _connectionName;
@@ -57,9 +62,15 @@ public sealed class MainViewModel : ViewModelBase
 
     public RelayCommand NavigateToDashboardCommand { get; }
 
-    public RelayCommand NavigateToSettingsCommand { get; }
+    public AsyncRelayCommand NavigateToSettingsCommand { get; }
 
     public AsyncRelayCommand SaveSettingsCommand { get; }
+
+    private async Task NavigateToSettingsAsync()
+    {
+        SelectedSection = AppSection.ConnectionSettings;
+        await ConnectionSettings.LoadAsync();
+    }
 
     private async Task SaveSettingsAsync()
     {

@@ -51,6 +51,7 @@ class AttachmentSyncService
         $data = $this->normalizeManifest($data);
         $manifest = $data;
         unset($manifest['operationId']);
+        ksort($manifest);
         $manifestHash = hash('sha256', $this->encode($manifest));
         $operationHash = hash('sha256', 'initialize:'.$manifestHash);
         $now = now('UTC');
@@ -589,7 +590,16 @@ class AttachmentSyncService
 
     private function findOwned(string $attachmentUuid, object $device): object
     {
-        $row = $this->findForSource($attachmentUuid, $device->source_id);
+        $row = DB::table(self::TABLE)
+            ->where('attachment_uuid', $attachmentUuid)
+            ->where('source_id', $device->source_id)
+            ->lockForUpdate()
+            ->first();
+
+        if ($row === null) {
+            throw new DomainException('attachment_not_found');
+        }
+
         $this->assertOwnedByDevice($row, $device);
 
         return $row;
@@ -676,6 +686,7 @@ class AttachmentSyncService
         $fileName = basename($path);
 
         return str_starts_with($path, $prefix)
+            && $path === $prefix.$fileName
             && !str_contains($path, '..')
             && !str_contains($path, '\\')
             && preg_match('/^[0-9]{6}-[a-f0-9]{64}$/', $fileName);
