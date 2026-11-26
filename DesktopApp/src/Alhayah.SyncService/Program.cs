@@ -6,6 +6,7 @@ using Alhayah.SyncService.Cursors;
 using Alhayah.SyncService.Identity;
 using Alhayah.SyncService.Ipc;
 using Alhayah.SyncService.Outbox;
+using Alhayah.SyncService.Realtime;
 using Alhayah.SyncService.Security;
 using Alhayah.SyncService.Services;
 using Alhayah.SyncService.Storage;
@@ -54,6 +55,44 @@ builder.Services.AddSingleton<LaravelSyncConnector>();
 builder.Services.AddSingleton<ISyncChannel>(services => services.GetRequiredService<LaravelSyncConnector>());
 builder.Services.AddSingleton<IOutboxTransport>(services => services.GetRequiredService<LaravelSyncConnector>());
 builder.Services.AddSingleton<OutboxProcessor>();
+builder.Services.AddSingleton<ILocalClientCertificateProvider, WindowsLocalClientCertificateProvider>();
+builder.Services.AddSingleton<ILocalHttpClientFactory, LocalHttpClientFactory>();
+builder.Services.AddSingleton(_ => new LocalConnectorOptions
+{
+    SourceId = builder.Configuration["SyncService:LocalServerSourceId"] ?? "local:default",
+    DeviceId = builder.Configuration["SyncService:DeviceId"]
+        ?? throw new InvalidOperationException("A stable Local Server device identifier is required."),
+    UserId = builder.Configuration["SyncService:LocalServerUserId"] ?? string.Empty,
+    ClientCertificateThumbprint = builder.Configuration["SyncService:LocalServerClientCertificateThumbprint"] ?? string.Empty,
+    MaxAttempts = builder.Configuration.GetValue("SyncService:LocalServerMaxAttempts", 3),
+    PullPageSize = builder.Configuration.GetValue("SyncService:LocalServerPullPageSize", 100)
+});
+builder.Services.AddKeyedSingleton<IChangePageApplier>(
+    "local",
+    (_, _) => new LocalChangePageApplier());
+builder.Services.AddKeyedSingleton<CursorStore>(
+    "local",
+    (services, _) => new CursorStore(
+        services.GetRequiredService<ISyncServiceStore>(),
+        services.GetRequiredKeyedService<IChangePageApplier>("local"),
+        services.GetRequiredService<TimeProvider>()));
+builder.Services.AddSingleton<LocalServerSyncConnector>(services => new LocalServerSyncConnector(
+    services.GetRequiredService<ILocalHttpClientFactory>(),
+    services.GetRequiredService<LocalConnectorOptions>(),
+    services.GetRequiredService<ISyncServiceStore>(),
+    services.GetRequiredKeyedService<CursorStore>("local"),
+    services.GetRequiredService<ISecretStore>(),
+    services.GetRequiredService<RetryPolicy>(),
+    services.GetRequiredService<TimeProvider>(),
+    services.GetRequiredService<ILogger<LocalServerSyncConnector>>()));
+builder.Services.AddSingleton<ISyncChannel>(services => services.GetRequiredService<LocalServerSyncConnector>());
+builder.Services.AddSingleton<ILocalSyncHubClient>(services => new LocalSyncHubClient(
+    services.GetRequiredService<ILocalHttpClientFactory>().CreateHandlerAsync,
+    services.GetRequiredService<SyncSettingsStore>(),
+    services.GetRequiredService<LocalConnectorOptions>(),
+    services.GetRequiredService<ISecretStore>(),
+    services.GetRequiredService<ILogger<LocalSyncHubClient>>()));
+builder.Services.AddSingleton<LocalSyncRealtimeCoordinator>();
 builder.Services.AddSingleton(_ => new SyncServiceHostOptions
 {
     LaravelSourceId = builder.Configuration["SyncService:LaravelSourceId"] ?? "laravel:default",

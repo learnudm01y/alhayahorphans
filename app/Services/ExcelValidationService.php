@@ -20,7 +20,11 @@ class ExcelValidationService
         'valid_rows' => 0,
         'invalid_rows' => 0,
         'duplicate_rows' => 0,
-        'skipped_rows' => 0
+        'skipped_rows' => 0,
+        'insert_rows' => 0,
+        'update_rows' => 0,
+        'link_rows' => 0,
+        'conflict_rows' => 0
     ];
 
     /**
@@ -386,36 +390,25 @@ class ExcelValidationService
         $rowErrors = array_merge($rowErrors, $foreignKeyErrors);
 
         // التحقق من القيود الفريدة
-        $uniqueErrors = $this->validateUniqueConstraints($rowData, $tableName, $rowNumber);
+        if ($tableName === 're_people') {
+            if (!empty($rowErrors)) {
+                $this->invalidRows[] = [
+                    'row_number' => $rowNumber,
+                    'data' => $rowData,
+                    'errors' => $rowErrors
+                ];
+                $this->statistics['invalid_rows']++;
 
-        // 🆕 معالجة خاصة: تكرار أفراد الأسرة المرتبطين بمعيل → تجاوز مباشر
-        $skipExisting = false;
-        $filteredUniqueErrors = [];
-        foreach ($uniqueErrors as $uniqueError) {
-            if (($uniqueError['type'] ?? null) === 'skip_existing_person') {
-                $skipExisting = true;
-                continue;
+                return;
             }
-            $filteredUniqueErrors[] = $uniqueError;
-        }
-        $rowErrors = array_merge($rowErrors, $filteredUniqueErrors);
 
-        if ($skipExisting) {
-            $this->skippedRows[] = [
-                'row_number' => $rowNumber,
-                'data' => $rowData,
-                'reason' => 'already_linked_to_guardian',
-                'person_id' => $rowData['person_id'] ?? null,
-            ];
-            $this->statistics['skipped_rows']++;
-
-            Log::info('⏭️ تجاوز فرد مكرر مرتبط بمعيل مسبقاً', [
-                'row_number' => $rowNumber,
-                'person_id' => $rowData['person_id'] ?? null,
-            ]);
+            $this->registerPersonRow($rowData, $rowNumber);
 
             return;
         }
+
+        $uniqueErrors = $this->validateUniqueConstraints($rowData, $tableName, $rowNumber);
+        $rowErrors = array_merge($rowErrors, $uniqueErrors);
 
         if (empty($rowErrors)) {
             $this->validRows[] = [
@@ -655,31 +648,6 @@ class ExcelValidationService
             if (isset($rowData[$field]) && !empty($rowData[$field])) {
                 $exists = DB::table($tableName)->where($field, $rowData[$field])->exists();
                 if ($exists) {
-                    // 🆕 معالجة تكرار أفراد الأسرة (re_people / person_id)
-                    if ($tableName === 're_people' && $field === 'person_id') {
-                        $existingPerson = DB::table('re_people')
-                            ->where('person_id', $rowData[$field])
-                            ->first();
-
-                        $isLinkedToGuardian = $existingPerson
-                            && !empty($existingPerson->registration_id)
-                            && $existingPerson->registration_id != 0;
-
-                        if ($isLinkedToGuardian) {
-                            // مرتبط بمعيل مسبقاً → إشارة للتجاوز المباشر
-                            $errors[] = [
-                                'valid' => true,
-                                'column' => $field,
-                                'value' => $rowData[$field],
-                                'row' => $rowNumber,
-                                'type' => 'skip_existing_person',
-                                'existing_id' => $existingPerson->id,
-                            ];
-                        }
-                        // غير مرتبط بمعيل → إبقاء الصف صالحاً ليتم ربطه بالمعيل عند الإدخال
-                        continue;
-                    }
-
                     $fieldNameAr = $fieldNames[$field] ?? $field;
                     $errors[] = [
                         'valid' => false,
@@ -699,10 +667,151 @@ class ExcelValidationService
     }
 
     /**
+     * تصنيف صف أفراد الأسرة: إدخال جديد / تحديث / ربط وتحديث / تعارض
+     */
+    protected function classifyPersonRow(array $rowData)
+    {
+        $identity = $rowData['registration_id'] ?? null;
+        $guardianFileId = DB::table('data')
+            ->where('data_id_number', $identity)
+            ->value('file_id_number');
+
+        $existing = DB::table('re_people')
+            ->where('person_id', $rowData['person_id'])
+            ->get(['id', 'registration_id']);
+
+        if ($existing->count() > 1) {
+            return [
+                'status' => 'conflict',
+                'reason' => 'duplicate_person_id_in_database',
+                'message' => "رقم الهوية '{$rowData['person_id']}' موجود في " . $existing->count() . " صفوف مختلفة، لا يمكن تحديد الصف الذي يجب تحديثه",
+                'existing_id' => null,
+                'guardian_file_id' => $guardianFileId,
+                'update_data' => [],
+            ];
+        }
+
+        $person = $existing->first();
+
+        if (!$person) {
+            return [
+                'status' => 'insert',
+                'existing_id' => null,
+                'guardian_file_id' => $guardianFileId,
+                'update_data' => $this->nonBlankFields($rowData),
+            ];
+        }
+
+        $currentFileId = $person->registration_id === null ? '' : trim((string) $person->registration_id);
+
+        if ($currentFileId !== '' && $currentFileId !== '0') {
+            if ((string) $currentFileId === (string) $guardianFileId) {
+                return [
+                    'status' => 'update',
+                    'existing_id' => $person->id,
+                    'guardian_file_id' => $guardianFileId,
+                    'update_data' => $this->nonBlankFields($rowData),
+                ];
+            }
+
+            return [
+                'status' => 'conflict',
+                'reason' => 'linked_to_other_guardian',
+                'message' => "الفرد مرتبط مسبقاً بالمعيل رقم ملف '{$currentFileId}' بينما الملف المرفوع يحيله إلى '{$guardianFileId}'",
+                'existing_id' => $person->id,
+                'guardian_file_id' => $guardianFileId,
+                'update_data' => [],
+            ];
+        }
+
+        return [
+            'status' => 'link_and_update',
+            'existing_id' => $person->id,
+            'guardian_file_id' => $guardianFileId,
+            'update_data' => $this->nonBlankFields($rowData),
+        ];
+    }
+
+    /**
+     * الحقول غير الفارغة في الصف (الفارغ لا يعرّف قيمة للتحديث)
+     */
+    protected function nonBlankFields(array $rowData)
+    {
+        $fields = [];
+
+        foreach ($rowData as $column => $value) {
+            if ($column === 'person_id') {
+                continue;
+            }
+
+            if (is_null($value) || (is_string($value) && trim($value) === '')) {
+                continue;
+            }
+
+            $fields[$column] = $value;
+        }
+
+        return $fields;
+    }
+
+    /**
+     * تسجيل صف أفراد الأسرة بعد تصنيفه
+     */
+    protected function registerPersonRow(array $rowData, $rowNumber)
+    {
+        $classification = $this->classifyPersonRow($rowData);
+
+        if ($classification['status'] === 'conflict') {
+            $this->statistics['conflict_rows']++;
+            $this->statistics['invalid_rows']++;
+            $this->invalidRows[] = [
+                'row_number' => $rowNumber,
+                'data' => $rowData,
+                'errors' => [[
+                    'valid' => false,
+                    'column' => 'person_id',
+                    'value' => $rowData['person_id'] ?? null,
+                    'error' => '⛔ تعارض: ' . $classification['message'],
+                    'row' => $rowNumber,
+                    'type' => 'person_conflict',
+                    'reason' => $classification['reason'],
+                    'severity' => 'critical',
+                    'solution' => 'لم يتم تعديل أو نقل هذا الفرد. راجع الربط الحالي قبل إعادة الرفع.'
+                ]]
+            ];
+
+            Log::warning('⛔ تعارض في صف فرد أسرة', [
+                'row_number' => $rowNumber,
+                'person_id' => $rowData['person_id'] ?? null,
+                'reason' => $classification['reason'],
+            ]);
+
+            return;
+        }
+
+        $this->validRows[] = [
+            'row_number' => $rowNumber,
+            'data' => $rowData,
+            'action' => $classification['status'],
+            'existing_id' => $classification['existing_id'],
+            'guardian_file_id' => $classification['guardian_file_id'],
+            'update_data' => $classification['update_data'],
+        ];
+
+        $this->statistics['valid_rows']++;
+
+        $counter = match ($classification['status']) {
+            'insert' => 'insert_rows',
+            'update' => 'update_rows',
+            default => 'link_rows',
+        };
+        $this->statistics[$counter]++;
+    }
+
+    /**
      * الحصول على الحقول الفريدة
      */
-    protected function getUniqueFields($tableName)
-    {
+    protected function getUniqueFields($tableName)    {
         $uniqueFields = [
             'data' => [
                 // فقط نفحص رقم الهوية - رقم الملف سيتم توليده تلقائياً من النظام
@@ -727,6 +836,8 @@ class ExcelValidationService
     {
         $uniqueFields = $this->getUniqueFields($tableName);
         $seen = [];
+        $personRows = [];
+        $personConflicts = [];
 
         Log::info('🔍 فحص التكرار داخل الملف', [
             'table' => $tableName,
@@ -749,24 +860,39 @@ class ExcelValidationService
                     $value = $row['data'][$field];
 
                     if (isset($seen[$field][$value])) {
-                        // 🆕 تكرار أفراد الأسرة داخل نفس الملف → تجاوز الصف اللاحق
+                        // 🆕 تكرار أفراد الأسرة داخل نفس الملف: متطابق → دمج، مختلف → تعارض
                         if ($tableName === 're_people' && $field === 'person_id') {
-                            $this->skippedRows[] = [
-                                'row_number' => $row['row_number'],
-                                'data' => $row['data'],
-                                'reason' => 'duplicate_in_file',
-                                'person_id' => $value,
-                                'first_seen_row' => $seen[$field][$value],
-                            ];
-                            $this->statistics['skipped_rows']++;
-                            unset($this->validRows[$index]);
-                            $this->statistics['valid_rows']--;
+                            if (isset($personConflicts[$value])) {
+                                $this->rejectPersonRowAsFileConflict($index, $value, $personConflicts[$value], $personConflicts);
+                                continue;
+                            }
 
-                            Log::info('⏭️ تجاوز تكرار داخل الملف لجدول أفراد الأسرة', [
-                                'person_id' => $value,
-                                'current_row' => $row['row_number'],
-                                'first_seen_row' => $seen[$field][$value],
-                            ]);
+                            $firstIndex = $personRows[$value]['index'];
+                            $firstRowNumber = $personRows[$value]['row_number'];
+
+                            if ($this->personRowsMatch($this->validRows[$firstIndex]['data'], $row['data'])) {
+                                $this->skippedRows[] = [
+                                    'row_number' => $row['row_number'],
+                                    'data' => $row['data'],
+                                    'reason' => 'duplicate_in_file',
+                                    'person_id' => $value,
+                                    'first_seen_row' => $firstRowNumber,
+                                ];
+                                $this->statistics['skipped_rows']++;
+                                unset($this->validRows[$index]);
+                                $this->statistics['valid_rows']--;
+
+                                Log::info('⏭️ دمج تكرار متطابق داخل الملف لجدول أفراد الأسرة', [
+                                    'person_id' => $value,
+                                    'current_row' => $row['row_number'],
+                                    'first_seen_row' => $firstRowNumber,
+                                ]);
+
+                                continue;
+                            }
+
+                            $this->rejectPersonRowAsFileConflict($firstIndex, $value, $row['row_number'], $personConflicts);
+                            $this->rejectPersonRowAsFileConflict($index, $value, $firstRowNumber, $personConflicts);
 
                             continue;
                         }
@@ -802,6 +928,13 @@ class ExcelValidationService
                         $this->statistics['duplicate_rows']++;
                     } else {
                         $seen[$field][$value] = $row['row_number'];
+
+                        if ($tableName === 're_people' && $field === 'person_id') {
+                            $personRows[$value] = [
+                                'index' => $index,
+                                'row_number' => $row['row_number'],
+                            ];
+                        }
                     }
                 }
             }
@@ -815,6 +948,80 @@ class ExcelValidationService
             'remaining_valid_rows' => count($this->validRows),
             'total_invalid_rows' => count($this->invalidRows)
         ]);
+    }
+
+    /**
+     * مقارنة صفين لنفس رقم الهوية داخل نفس الملف
+     */
+    protected function personRowsMatch(array $first, array $second): bool
+    {
+        $columns = array_unique(array_merge(array_keys($first), array_keys($second)));
+
+        foreach ($columns as $column) {
+            $firstValue = $this->compareableValue($first[$column] ?? null);
+            $secondValue = $this->compareableValue($second[$column] ?? null);
+
+            if ($firstValue !== $secondValue) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function compareableValue($value): string
+    {
+        if (is_bool($value)) {
+            return $value ? '1' : '0';
+        }
+
+        if (is_null($value)) {
+            return '';
+        }
+
+        return trim((string) $value);
+    }
+
+    /**
+     * رفض صف فرد لأسرة بسبب تعارض تكراره داخل الملف
+     */
+    protected function rejectPersonRowAsFileConflict($index, $value, $otherRowNumber, array &$personConflicts)
+    {
+        if (!isset($this->validRows[$index])) {
+            return;
+        }
+
+        $row = $this->validRows[$index];
+        $counter = match ($row['action'] ?? 'insert') {
+            'update' => 'update_rows',
+            'link_and_update' => 'link_rows',
+            default => 'insert_rows',
+        };
+
+        $this->statistics['valid_rows']--;
+        $this->statistics[$counter]--;
+        $this->statistics['invalid_rows']++;
+        $this->statistics['conflict_rows']++;
+        $this->statistics['duplicate_rows']++;
+
+        $this->invalidRows[] = [
+            'row_number' => $row['row_number'],
+            'data' => $row['data'],
+            'errors' => [[
+                'valid' => false,
+                'column' => 'person_id',
+                'value' => $value,
+                'error' => '⛔ تعارض: نفس رقم الهوية مكرر داخل الملف بقيم مختلفة' . ($otherRowNumber ? " (الصف {$otherRowNumber})" : ''),
+                'row' => $row['row_number'],
+                'type' => 'person_conflict',
+                'reason' => 'conflicting_duplicate_in_file',
+                'severity' => 'critical',
+                'solution' => 'وحّد القيم المكررة في الملف أو احذف الصفوف المتعارضة ثم أعد الرفع.'
+            ]]
+        ];
+
+        unset($this->validRows[$index]);
+        $personConflicts[$value] = $row['row_number'];
     }
 
     /**
@@ -883,6 +1090,10 @@ class ExcelValidationService
                 'invalid' => $this->statistics['invalid_rows'],
                 'duplicate' => $this->statistics['duplicate_rows'],
                 'skipped' => $this->statistics['skipped_rows'],
+                'insert' => $this->statistics['insert_rows'] ?? 0,
+                'update' => $this->statistics['update_rows'] ?? 0,
+                'link' => $this->statistics['link_rows'] ?? 0,
+                'conflict' => $this->statistics['conflict_rows'] ?? 0,
                 'success_rate' => $this->statistics['total_rows'] > 0
                     ? round(($this->statistics['valid_rows'] / $this->statistics['total_rows']) * 100, 2)
                     : 0
@@ -900,21 +1111,41 @@ class ExcelValidationService
         $valid = $this->statistics['valid_rows'];
         $invalid = $this->statistics['invalid_rows'];
         $skipped = $this->statistics['skipped_rows'] ?? 0;
+        $insert = $this->statistics['insert_rows'] ?? 0;
+        $update = $this->statistics['update_rows'] ?? 0;
+        $link = $this->statistics['link_rows'] ?? 0;
+        $conflict = $this->statistics['conflict_rows'] ?? 0;
 
         if ($valid === 0) {
-            if ($skipped > 0 && $invalid === 0) {
-                return "⏭️ جميع الصفوف ({$total}) تم تجاوزها: الأفراد مسجّلون ومرتبطون بمعيل مسبقاً أو مكررون داخل الملف.";
+            if ($insert + $update + $link === 0 && $skipped > 0 && $invalid === 0) {
+                return "⏭️ جميع الصفوف ({$total}) تم تجاوزها: مكررة داخل الملف بنفس القيم.";
+            }
+            if ($conflict > 0 && $invalid === $conflict) {
+                return "⛔ لا يوجد صف قابل للتنفيذ: {$conflict} صف يحتوي على تعارض في الربط أو التكرار.";
             }
             return "❌ جميع الصفوف ({$total}) تحتوي على أخطاء ولا يمكن إدخالها. يرجى مراجعة التفاصيل أدناه.";
         }
 
-        if ($invalid === 0) {
-            return $skipped > 0
-                ? "✅ {$valid} صف صالح للإدخال، وتم تجاوز {$skipped} صف مرتبط بمعيل مسبقاً."
-                : "✅ جميع الصفوف ({$total}) صالحة للإدخال. يمكن المتابعة بأمان.";
+        $actions = [];
+        if ($insert > 0) {
+            $actions[] = "إدخال {$insert} جديد";
+        }
+        if ($update > 0) {
+            $actions[] = "تحديث {$update} موجود";
+        }
+        if ($link > 0) {
+            $actions[] = "ربط {$link} بالمعيل";
         }
 
-        return "⚠️ الملف يحتوي على {$valid} صف صحيح و {$invalid} صف يحتوي على أخطاء. سيتم إدخال الصفوف الصحيحة فقط.";
+        $actionsText = $actions !== [] ? ' (' . implode('، ', $actions) . ')' : '';
+        $conflictText = $conflict > 0 ? "، و{$conflict} صف متعارض لن يُعدّل" : '';
+        $skippedText = $skipped > 0 ? "، وتم تجاوز {$skipped} تكرار مطابق داخل الملف" : '';
+
+        if ($invalid === 0) {
+            return "✅ {$valid} صف صالح{$actionsText}{$conflictText}{$skippedText}.";
+        }
+
+        return "⚠️ الملف يحتوي على {$valid} صف تنفيذ$actionsText و {$invalid} صف يحتوي على أخطاء$conflictText$skippedText. سيتم تنفيذ الصفوف الصحيحة فقط.";
     }
 
     /**

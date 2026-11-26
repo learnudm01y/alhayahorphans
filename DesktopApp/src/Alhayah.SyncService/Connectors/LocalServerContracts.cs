@@ -92,7 +92,7 @@ public sealed record LocalPullResult
     public required CursorState Cursor { get; init; }
 }
 
-public sealed class LocalSyncException : Exception
+public sealed class LocalSyncException : IOException
 {
     public LocalSyncException(
         string errorCode,

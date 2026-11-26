@@ -425,7 +425,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // متغيرات لتتبع التفاعل
     let isModalActive = false;
-    let originalFileInput = null;
     let pendingCallback = null;
 
     // دالة كشف نوع الجهاز
@@ -520,7 +519,6 @@ document.addEventListener('DOMContentLoaded', function() {
             modalContent.style.animation = '';
             modal.classList.remove('show');
             isModalActive = false;
-            originalFileInput = null;
             pendingCallback = null;
         }, 300);
 
@@ -542,18 +540,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 pendingCallback(file);
             }, 100);
         }
-        // ثالثاً: إذا كان هناك input أصلي، انقل الملف إليه
-        else if (originalFileInput) {
-            console.log('✅ [Transfer] نقل إلى input الأصلي');
-            const dataTransfer = new DataTransfer();
-            dataTransfer.items.add(file);
-            originalFileInput.files = dataTransfer.files;
-
-            // إطلاق حدث change
-            const changeEvent = new Event('change', { bubbles: true });
-            originalFileInput.dispatchEvent(changeEvent);
-        }
-        // رابعاً: إذا لم يكن هناك callback ولا input، فتح القص مباشرة
+        // ثالثاً: إذا لم يكن هناك callback، فتح القص مباشرة
         else {
             console.log('🔄 [Transfer] فتح القص مباشرة');
             if (typeof window.showCropperModal === 'function') {
@@ -640,151 +627,10 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('🎛️ [ModalEvents] تم إعداد جميع أحداث Modal');
     }
 
-    // دالة تحسين تجربة رفع الملفات - فقط للأجهزة المحمولة
-    function enhanceFileInputs() {
-        const deviceInfo = detectDeviceType();
-
-        // فقط للأجهزة المحمولة والتابلت
-        if (!deviceInfo.isMobile && !deviceInfo.isTablet) {
-            console.log('💻 [Enhancement] جهاز كمبيوتر - لا حاجة لتحسين رفع الملفات');
-            return;
-        }
-
-        console.log('📱 [Enhancement] جهاز محمول/لوحي - تطبيق تحسينات رفع الملفات');
-
-        // البحث عن جميع inputs الخاصة بالصور في النظام الموجود
-        const selectors = [
-            'input[type="file"][accept*="image"]',
-            'input[type="file"].mainDocumentFileInput',
-            'input[type="file"]#mainDocumentFileInput_main',
-            'input[type="file"]#mainDocumentFileInput_father',
-            'input[type="file"]#mainDocumentFileInput_mother',
-            'input[type="file"][id^="mainDocumentFileInput_"]'
-        ];
-
-        const imageFileInputs = document.querySelectorAll(selectors.join(','));
-
-        imageFileInputs.forEach((input, index) => {
-            // تجنب معالجة inputs المودال الخاص بنا
-            if (input.id === 'deviceCameraInput' || input.id === 'deviceGalleryInput') {
-                return;
-            }
-
-            // إزالة المعالجات السابقة إذا كانت موجودة
-            if (input.dataset.deviceEnhanced === 'true') {
-                return;
-            }
-
-            console.log(`🔧 [Enhancement] تحسين input رقم ${index + 1}:`, input.id || input.className);
-
-            // استبدال معالج النقر للأجهزة المحمولة فقط
-            const originalClick = input.onclick;
-
-            input.addEventListener('click', function(e) {
-                // للأجهزة المحمولة: إظهار مودال الاختيار
-                if (deviceInfo.isMobile || deviceInfo.isTablet) {
-                    e.preventDefault();
-                    e.stopPropagation();
-
-                    console.log('🎯 [Enhancement] تم النقر على input محسن (جهاز محمول)، إظهار مودال الاختيار');
-
-                    originalFileInput = input;
-                    showImageSourceModal(function(selectedFile) {
-                        console.log('📋 [Enhancement] استلام ملف من المودال:', selectedFile.name);
-
-                        // نقل الملف إلى input الأصلي
-                        const dataTransfer = new DataTransfer();
-                        dataTransfer.items.add(selectedFile);
-                        input.files = dataTransfer.files;
-
-                        // تشغيل المعالج الأصلي إذا كان موجوداً
-                        if (originalClick) {
-                            try {
-                                originalClick.call(input, e);
-                            } catch (err) {
-                                console.warn('تحذير: خطأ في تشغيل المعالج الأصلي:', err);
-                            }
-                        }
-
-                        // إطلاق حدث change
-                        const changeEvent = new Event('change', { bubbles: true });
-                        input.dispatchEvent(changeEvent);
-
-                        // إطلاق حدث input للتأكد من تحديث UI
-                        const inputEvent = new Event('input', { bubbles: true });
-                        input.dispatchEvent(inputEvent);
-                    });
-                }
-                // للكمبيوتر: العمل العادي (لا تدخل)
-            });
-
-            // وضع علامة أن هذا input تم تحسينه
-            input.dataset.deviceEnhanced = 'true';
-        });
-
-        // مراقبة إضافة inputs جديدة
-        const observer = new MutationObserver(function(mutations) {
-            let needsUpdate = false;
-
-            mutations.forEach(function(mutation) {
-                mutation.addedNodes.forEach(function(node) {
-                    if (node.nodeType === 1 && node.querySelectorAll) {
-                        const newInputs = node.querySelectorAll(selectors.join(','));
-                        if (newInputs.length > 0) {
-                            needsUpdate = true;
-                        }
-                    }
-                });
-            });
-
-            if (needsUpdate) {
-                console.log('🆕 [Enhancement] inputs جديدة تمت إضافتها، تطبيق التحسينات');
-                setTimeout(() => enhanceFileInputs(), 100);
-            }
-        });
-
-        observer.observe(document.body, {
-            childList: true,
-            subtree: true
-        });
-    }
-
     // تهيئة النظام
     function initializeSystem() {
         console.log('🎯 [Init] بدء تهيئة نظام تحسين اختيار مصدر الصورة');
-
         setupModalEvents();
-
-        // انتظار تحميل أداة القص
-        let cropperCheckCount = 0;
-        const maxCropperChecks = 50;
-
-        function waitForCropper() {
-            if (window.showCropperModal || window.showCropper) {
-                console.log('✅ [Init] أداة القص متوفرة');
-                // بدء تحسين inputs بعد التأكد من توفر أداة القص
-                setTimeout(() => {
-                    enhanceFileInputs();
-                }, 500);
-                return true;
-            }
-
-            if (cropperCheckCount < maxCropperChecks) {
-                cropperCheckCount++;
-                setTimeout(waitForCropper, 100);
-                return false;
-            }
-
-            console.warn('⚠️ [Init] أداة القص غير متوفرة بعد انتظار 5 ثوان، سيتم المتابعة بدونها');
-            // المتابعة حتى لو لم تكن أداة القص متوفرة
-            setTimeout(() => {
-                enhanceFileInputs();
-            }, 500);
-            return false;
-        }
-
-        waitForCropper();
-
         console.log('✅ [Init] تم تهيئة النظام بنجاح');
     }
 
@@ -796,8 +642,7 @@ document.addEventListener('DOMContentLoaded', function() {
         showModal: showImageSourceModal,
         hideModal: hideImageSourceModal,
         detectDevice: detectDeviceType,
-        isActive: () => isModalActive,
-        enhance: enhanceFileInputs
+        isActive: () => isModalActive
     };
 
     console.log('🎉 [DeviceImageSource] تم تشغيل النظام بنجاح');

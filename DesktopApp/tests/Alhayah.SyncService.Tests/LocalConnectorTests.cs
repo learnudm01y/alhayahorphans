@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Security;
+using System.Security.Authentication;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
@@ -8,6 +9,7 @@ using Alhayah.Contracts.Domain;
 using Alhayah.Contracts.Ipc;
 using Alhayah.LocalData.Data;
 using Alhayah.LocalData.Services;
+using Alhayah.SyncService.Configuration;
 using Alhayah.SyncService.Connectors;
 using Alhayah.SyncService.Cursors;
 using Alhayah.SyncService.Realtime;
@@ -42,6 +44,11 @@ public sealed class LocalConnectorTests
                 return JsonResponse(CapabilitiesJson());
             }
 
+            if (request.Method == HttpMethod.Get && request.PathAndQuery == "/local/changes?limit=1")
+            {
+                return JsonResponse(FeedJson("probe-cursor", false));
+            }
+
             return JsonResponse("{}", HttpStatusCode.NotFound);
         });
 
@@ -55,14 +62,18 @@ public sealed class LocalConnectorTests
         Assert.Equal("https-required", capabilities.Transport);
         Assert.Equal(["DNS", "TCP", "TLS", "Auth", "Compatibility"], check.Stages.Select(stage => stage.Stage));
         Assert.All(check.Stages, stage => Assert.True(stage.Succeeded));
-        Assert.All(fixture.Handler.Requests.Where(request => request.PathAndQuery == "/health"), request =>
-            Assert.False(request.Headers.ContainsKey("Authorization")));
-        Assert.All(fixture.Handler.Requests.Where(request => request.PathAndQuery == "/capabilities"), request =>
+        Assert.All(fixture.Handler.Requests.Where(request =>
+            request.PathAndQuery is "/health" or "/capabilities"), request =>
         {
-            Assert.Equal($"Device {Credential}", request.Header("Authorization"));
-            Assert.Equal(DeviceId, request.Header("X-Alhayah-Device-Id"));
-            Assert.Equal(UserId, request.Header("X-Alhayah-User-Id"));
+            Assert.False(request.Headers.ContainsKey("Authorization"));
+            Assert.False(request.Headers.ContainsKey("X-Alhayah-Device-Id"));
+            Assert.False(request.Headers.ContainsKey("X-Alhayah-User-Id"));
         });
+        RecordedRequest authenticated = Assert.Single(fixture.Handler.Requests.Where(request =>
+            request.PathAndQuery == "/local/changes?limit=1"));
+        Assert.Equal($"Device {Credential}", authenticated.Header("Authorization"));
+        Assert.Equal(DeviceId, authenticated.Header("X-Alhayah-Device-Id"));
+        Assert.Equal(UserId, authenticated.Header("X-Alhayah-User-Id"));
     }
 
     [Fact]
@@ -188,6 +199,47 @@ public sealed class LocalConnectorTests
     }
 
     [Fact]
+    public async Task PullAsync_WithRejectedCursor_RestartsFullChangeFeedReplay()
+    {
+        Guid clientUuid = Guid.NewGuid();
+        await using ConnectorFixture fixture = await ConnectorFixture.CreateAsync(request =>
+        {
+            if (request.PathAndQuery.Contains("cursor=expired-cursor", StringComparison.Ordinal))
+            {
+                return JsonResponse("{\"message\":\"full reconciliation required\"}", HttpStatusCode.BadRequest);
+            }
+
+            if (request.PathAndQuery == "/local/changes?limit=2")
+            {
+                return JsonResponse(FeedJson(
+                    "replay-31",
+                    false,
+                    ChangeJson(31, clientUuid, "Create", "{\"aidType\":\"Synthetic replayed aid\"}")));
+            }
+
+            return JsonResponse("{}", HttpStatusCode.BadRequest);
+        });
+        await fixture.Cursors.CommitPageAsync(
+            SourceId,
+            "local-operations",
+            EmptyPage(5, "expired-cursor"),
+            CancellationToken.None);
+
+        LocalPullResult result = await fixture.Connector.PullAsync(CancellationToken.None);
+
+        Assert.Single(result.Changes);
+        Assert.Equal(1, result.PageCount);
+        Assert.Equal("replay-31", result.Cursor.Cursor);
+        Assert.Equal(ReconciliationPhase.Reconciled, result.Cursor.Phase);
+        Assert.False(result.Cursor.ReconciliationRequired);
+        Assert.Contains(fixture.Handler.Requests, request =>
+            request.PathAndQuery.Contains("cursor=expired-cursor", StringComparison.Ordinal));
+        Assert.Contains(fixture.Handler.Requests, request => request.PathAndQuery == "/local/changes?limit=2");
+        await using LocalStoreDbContext context = fixture.Harness.Store.CreateContext();
+        Assert.Single(await context.CachedEntities.Where(entity => entity.ClientUuid == clientUuid).ToArrayAsync());
+    }
+
+    [Fact]
     public async Task PullAsync_WhenPageCommitFails_LeavesCursorForRetryWithoutDuplicateEffect()
     {
         CommitCrashInterceptor crash = new();
@@ -259,6 +311,73 @@ public sealed class LocalConnectorTests
         Assert.Equal($"desktop:{operationId:N}", body.RootElement.GetProperty("idempotencyKey").GetString());
         Assert.Equal(operationId, body.RootElement.GetProperty("envelope").GetProperty("operationId").GetGuid());
         Assert.Equal("/local/operations/aid", fixture.Handler.Requests[0].PathAndQuery);
+    }
+
+    [Fact]
+    public async Task PushAsync_WhenCachedPayloadChangesAfterFailure_RetriesOriginalRequestSnapshot()
+    {
+        Guid operationId = Guid.NewGuid();
+        Guid patchOperationId = Guid.NewGuid();
+        Guid clientUuid = Guid.NewGuid();
+        bool retryAvailable = false;
+        int completedEffects = 0;
+        HashSet<Guid> completedOperations = [];
+        await using ConnectorFixture fixture = await ConnectorFixture.CreateAsync(_ =>
+        {
+            if (!retryAvailable)
+            {
+                return JsonResponse("{\"message\":\"synthetic unavailable\"}", HttpStatusCode.ServiceUnavailable);
+            }
+
+            if (completedOperations.Add(operationId))
+            {
+                completedEffects++;
+            }
+
+            return JsonResponse(OperationResultJson(operationId, clientUuid, "Completed"));
+        });
+        await SeedAidAsync(fixture.Harness, operationId, clientUuid);
+        SyncEnvelope createEnvelope = await LoadEnvelopeAsync(fixture, operationId);
+
+        await Assert.ThrowsAsync<LocalSyncException>(() =>
+            fixture.Connector.PushAsync(createEnvelope, CancellationToken.None));
+
+        await using (LocalStoreDbContext context = fixture.Harness.Store.CreateContext())
+        {
+            CachedEntity cached = await context.CachedEntities.SingleAsync(entity => entity.ClientUuid == clientUuid);
+            SyncEnvelope patchEnvelope = LocalEnvelope(patchOperationId, clientUuid, "AidOperation") with
+            {
+                OperationType = SyncOperationType.Update,
+                RowVersion = cached.RowVersion,
+                OccurredAtUtc = cached.UpdatedAtUtc.AddSeconds(1),
+                Patches =
+                [
+                    new FieldPatch
+                    {
+                        FieldName = "aidType",
+                        LocalValue = JsonSerializer.SerializeToElement("SyntheticAidPatched"),
+                        Criticality = FieldCriticality.Mergeable
+                    }
+                ]
+            };
+            await new UnitOfWork(context).PatchAsync(
+                patchEnvelope,
+                "SyntheticAidPatched",
+                new LocalAuditContext(null, "synthetic.write", 1));
+        }
+
+        retryAvailable = true;
+        LocalOperationResult result = await fixture.Connector.PushAsync(createEnvelope, CancellationToken.None);
+
+        Assert.Equal(LocalOperationStatus.Completed, result.Status);
+        Assert.Equal(1, completedEffects);
+        Assert.Equal(4, fixture.Handler.Requests.Count);
+        Assert.All(fixture.Handler.Requests, request =>
+            Assert.Equal(fixture.Handler.Requests[0].BodyText, request.BodyText));
+        using JsonDocument body = JsonDocument.Parse(fixture.Handler.Requests[0].BodyText!);
+        Assert.Equal("SyntheticAid", body.RootElement.GetProperty("aidType").GetString());
+        Assert.Equal(operationId, body.RootElement.GetProperty("operationId").GetGuid());
+        Assert.Equal($"desktop:{operationId:N}", body.RootElement.GetProperty("idempotencyKey").GetString());
     }
 
     [Fact]
@@ -338,6 +457,36 @@ public sealed class LocalConnectorTests
         Assert.False(exception.IsTransient);
         Assert.Single(fixture.Handler.Requests);
         Assert.Equal("Pending", await OutboxStatusAsync(fixture, operationId));
+    }
+
+    [Theory]
+    [InlineData("Pending", HttpStatusCode.Accepted)]
+    [InlineData("Conflict", HttpStatusCode.Conflict)]
+    public async Task PushAsync_WithNonCompletedServerResult_DoesNotAcknowledgeOutbox(
+        string status,
+        HttpStatusCode statusCode)
+    {
+        Guid operationId = Guid.NewGuid();
+        Guid clientUuid = Guid.NewGuid();
+        await using ConnectorFixture fixture = await ConnectorFixture.CreateAsync(request =>
+        {
+            if (request.Method == HttpMethod.Get && request.PathAndQuery.StartsWith("/local/changes", StringComparison.Ordinal))
+            {
+                return JsonResponse(FeedJson("after-pending", false));
+            }
+
+            return JsonResponse(OperationResultJson(operationId, clientUuid, status), statusCode);
+        });
+        await SeedAidAsync(fixture.Harness, operationId, clientUuid);
+        SyncEnvelope envelope = await LoadEnvelopeAsync(fixture, operationId);
+
+        LocalOperationResult result = await fixture.Connector.PushAsync(envelope, CancellationToken.None);
+        SynchronizeNowResult synchronized = await fixture.Connector.SynchronizeNowAsync(CancellationToken.None);
+
+        Assert.Equal(status, result.Status.ToString());
+        Assert.Equal("Pending", synchronized.Status);
+        Assert.Equal("Pending", await OutboxStatusAsync(fixture, operationId));
+        Assert.Equal(2, fixture.Handler.Requests.Count(request => request.Method == HttpMethod.Post));
     }
 
     [Fact]
@@ -432,6 +581,76 @@ public sealed class LocalConnectorTests
         Assert.DoesNotContain(syntheticPii, exception.Message, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task LocalHttpClientFactory_AcceptsCurrentOrPreviousPinAndAttachesClientCertificate(
+        bool useCurrentPin)
+    {
+        using CertificateFixture certificates = new();
+        ConnectionSettingsData settings = SyncSettingsStore.Defaults() with
+        {
+            LocalServerSpkiSha256Pin = useCurrentPin ? certificates.CertificatePin : certificates.OtherPin,
+            PreviousLocalServerSpkiSha256Pin = useCurrentPin ? certificates.OtherPin : certificates.CertificatePin
+        };
+        (SyncSettingsStore store, string path) = await SaveSyntheticSettingsAsync(settings);
+        try
+        {
+            LocalHttpClientFactory factory = new(store, LocalOptions(), new SyntheticCertificateProvider(certificates.Certificate));
+
+            using SocketsHttpHandler handler = Assert.IsAssignableFrom<SocketsHttpHandler>(
+                await factory.CreateHandlerAsync(CancellationToken.None));
+
+            Assert.Contains(handler.SslOptions.ClientCertificates, certificate =>
+                string.Equals(certificate.Thumbprint, certificates.Certificate.Thumbprint, StringComparison.OrdinalIgnoreCase));
+            Assert.NotNull(handler.SslOptions.RemoteCertificateValidationCallback);
+            Assert.True(handler.SslOptions.RemoteCertificateValidationCallback(
+                null,
+                certificates.Certificate,
+                null,
+                SslPolicyErrors.None));
+            Assert.False(handler.AllowAutoRedirect);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task LocalHttpClientFactory_RejectsPinMismatchAndNormalChainFailure()
+    {
+        using CertificateFixture certificates = new();
+        ConnectionSettingsData settings = SyncSettingsStore.Defaults() with
+        {
+            LocalServerSpkiSha256Pin = certificates.OtherPin
+        };
+        (SyncSettingsStore store, string path) = await SaveSyntheticSettingsAsync(settings);
+        try
+        {
+            LocalHttpClientFactory factory = new(store, LocalOptions(), new SyntheticCertificateProvider(certificates.Certificate));
+            using SocketsHttpHandler handler = Assert.IsAssignableFrom<SocketsHttpHandler>(
+                await factory.CreateHandlerAsync(CancellationToken.None));
+            RemoteCertificateValidationCallback validate =
+                handler.SslOptions.RemoteCertificateValidationCallback!;
+
+            Assert.ThrowsAny<AuthenticationException>(() => validate(
+                null,
+                certificates.Certificate,
+                null,
+                SslPolicyErrors.None));
+            Assert.False(validate(
+                null,
+                certificates.Certificate,
+                null,
+                SslPolicyErrors.RemoteCertificateChainErrors));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
     [Fact]
     public void LocalCertificatePinValidation_RejectsMismatchAndTrustFailure()
     {
@@ -451,6 +670,23 @@ public sealed class LocalConnectorTests
 
         Assert.True(current.Validate(certificates.Certificate, SslPolicyErrors.None));
         Assert.True(previous.Validate(certificates.Certificate, SslPolicyErrors.None));
+    }
+
+    private static LocalConnectorOptions LocalOptions() => new()
+    {
+        SourceId = SourceId,
+        DeviceId = DeviceId,
+        UserId = UserId,
+        ClientCertificateThumbprint = "synthetic-client-thumbprint"
+    };
+
+    private static async Task<(SyncSettingsStore Store, string Path)> SaveSyntheticSettingsAsync(
+        ConnectionSettingsData settings)
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"alhayah-local-settings-{Guid.NewGuid():N}.json");
+        SyncSettingsStore store = new(path);
+        await store.SaveAsync(settings, CancellationToken.None);
+        return (store, path);
     }
 
     private static RemoteChangePage EmptyPage(long changeId, string cursor) => new()
@@ -642,6 +878,14 @@ public sealed class LocalConnectorTests
             BaseAddress = new Uri("https://synthetic.invalid/", UriKind.Absolute),
             Timeout = TimeSpan.FromSeconds(5)
         });
+
+        public Task<HttpMessageHandler> CreateHandlerAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<HttpMessageHandler>(handler);
+    }
+
+    private sealed class SyntheticCertificateProvider(X509Certificate2 certificate) : ILocalClientCertificateProvider
+    {
+        public X509Certificate2 LoadCertificate(string thumbprint) => certificate;
     }
 
     private sealed class RecordingHttpMessageHandler : HttpMessageHandler
@@ -705,6 +949,8 @@ public sealed class LocalConnectorTests
     {
         private Func<CancellationToken, Task>? _onChanged;
 
+        public bool IsConnected { get; private set; }
+
         public Exception? StartException { get; set; }
 
         public Task StartAsync(Func<CancellationToken, Task> onChanged, CancellationToken cancellationToken)
@@ -715,6 +961,7 @@ public sealed class LocalConnectorTests
             }
 
             _onChanged = onChanged;
+            IsConnected = true;
             return Task.CompletedTask;
         }
 
@@ -723,6 +970,7 @@ public sealed class LocalConnectorTests
         public Task StopAsync(CancellationToken cancellationToken)
         {
             _onChanged = null;
+            IsConnected = false;
             return Task.CompletedTask;
         }
 

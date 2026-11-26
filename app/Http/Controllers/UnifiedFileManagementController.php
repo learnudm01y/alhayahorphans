@@ -5594,7 +5594,7 @@ class UnifiedFileManagementController extends Controller
             $insertedCount = 0;
             $failedInserts = [];
             $linkedCount = 0;
-            $skippedExistingCount = 0;
+            $updatedCount = 0;
 
             foreach ($validRows as $rowInfo) {
                 try {
@@ -5604,43 +5604,30 @@ class UnifiedFileManagementController extends Controller
                     // تطبيق المعالجة الخاصة بالموديل (تحويل القيم المفقودة، تنظيف البيانات، إلخ)
                     $rowData = $this->excelImportService->processRowData($rowData, $targetTable);
 
-                    // 🆕 معالجة تكرار أفراد الأسرة (re_people):
-                    // موجود ومربوط بمعيل → تجاوز | موجود وغير مرتبط → ربطه بالمعيل فقط
-                    if ($targetTable === 're_people' && !empty($rowData['person_id'])) {
-                        $existingPerson = DB::table('re_people')
-                            ->where('person_id', $rowData['person_id'])
-                            ->first();
+                    // أفراد الأسرة: تنفيذ إجراء الفحص (تحديث / ربط وتحديث) دون تفريغ الحقول الفارغة
+                    $action = $rowInfo['action'] ?? null;
+                    if ($targetTable === 're_people' && in_array($action, ['update', 'link_and_update'], true)) {
+                        $allowedColumns = array_keys($rowInfo['update_data'] ?? []);
+                        $payload = array_intersect_key($rowData, array_flip($allowedColumns));
+                        unset($payload['id'], $payload['person_id'], $payload['created_at']);
 
-                        if ($existingPerson) {
-                            $isLinkedToGuardian = !empty($existingPerson->registration_id)
-                                && $existingPerson->registration_id != 0;
+                        DB::table('re_people')
+                            ->where('id', $rowInfo['existing_id'])
+                            ->update($payload);
 
-                            if ($isLinkedToGuardian) {
-                                $skippedExistingCount++;
-
-                                Log::info('⏭️ تجاوز فرد موجود ومربوط بمعيل عند الإدخال', [
-                                    'person_id' => $rowData['person_id'],
-                                    'existing_id' => $existingPerson->id,
-                                ]);
-
-                                continue;
-                            }
-
-                            // غير مرتبط بمعيل → تعبئة registration_id فقط دون تعديل أي حقل آخر
-                            DB::table('re_people')
-                                ->where('id', $existingPerson->id)
-                                ->update(['registration_id' => $rowData['registration_id']]);
-
+                        if ($action === 'link_and_update') {
                             $linkedCount++;
-
-                            Log::info('🔗 ربط فرد موجود بمعيل', [
-                                'person_id' => $rowData['person_id'],
-                                'existing_id' => $existingPerson->id,
-                                'registration_id' => $rowData['registration_id'],
-                            ]);
-
-                            continue;
+                        } else {
+                            $updatedCount++;
                         }
+
+                        Log::info($action === 'link_and_update' ? '🔗 ربط وتحديث فرد موجود' : '✏️ تحديث فرد موجود', [
+                            'person_id' => $rowInfo['data']['person_id'] ?? null,
+                            'existing_id' => $rowInfo['existing_id'],
+                            'updated_columns' => array_keys($payload),
+                        ]);
+
+                        continue;
                     }
 
                     DB::table($targetTable)->insert($rowData);
@@ -5659,8 +5646,8 @@ class UnifiedFileManagementController extends Controller
                 }
             }
 
-            // إذا نجح الإدخال، نحفظ الملف بشكل دائم
-            if ($insertedCount > 0 || $linkedCount > 0) {
+            // إذا نجح التنفيذ، نحفظ الملف بشكل دائم
+            if ($insertedCount > 0 || $linkedCount > 0 || $updatedCount > 0) {
                 // نقل الملف من temp إلى المجلد الدائم
                 $permanentPath = 'excel_files/' . basename($tempPath);
                 Storage::disk('public')->move($tempPath, $permanentPath);
@@ -5677,23 +5664,40 @@ class UnifiedFileManagementController extends Controller
                 // تنظيف Session بعد النجاح
                 session()->forget($validationId);
 
-                Log::info('✅ تم الإدخال بنجاح', [
-                    'imported_rows' => $insertedCount,
+                Log::info('✅ تم التنفيذ بنجاح', [
+                    'inserted_rows' => $insertedCount,
+                    'updated_rows' => $updatedCount,
                     'linked_rows' => $linkedCount,
-                    'skipped_existing_rows' => $skippedExistingCount,
+                    'conflict_rows' => $validationResult['statistics']['conflict_rows'] ?? 0,
                     'failed_rows' => count($failedInserts),
                     'performance' => 'تم تجنب إعادة التحقق - توفير ~50% من الوقت'
                 ]);
 
+                $conflictCount = $validationResult['statistics']['conflict_rows'] ?? 0;
+
+                $messageParts = [];
+                if ($insertedCount > 0) {
+                    $messageParts[] = "تم إدخال {$insertedCount} صف جديد";
+                }
+                if ($updatedCount > 0) {
+                    $messageParts[] = "تحديث {$updatedCount} فرد موجود";
+                }
+                if ($linkedCount > 0) {
+                    $messageParts[] = "ربط {$linkedCount} فرد بمعيل وتحديث بياناته";
+                }
+                if ($conflictCount > 0) {
+                    $messageParts[] = "{$conflictCount} صف متعارض لم يُنفّذ";
+                }
+
                 return response()->json([
                     'success' => true,
-                    'message' => "تم إدخال {$insertedCount} صف بنجاح"
-                        . ($linkedCount > 0 ? "، وربط {$linkedCount} فرد بمعيل" : '')
-                        . ($skippedExistingCount > 0 ? "، وتجاوز {$skippedExistingCount} فرد مكرر مربوط بمعيل" : ''),
+                    'message' => implode('، ', $messageParts),
                     'import_result' => [
                         'imported_rows' => $insertedCount,
+                        'updated_rows' => $updatedCount,
                         'linked_rows' => $linkedCount,
-                        'skipped_existing_rows' => $skippedExistingCount,
+                        'conflict_rows' => $conflictCount,
+                        'skipped_existing_rows' => $validationResult['statistics']['skipped_rows'] ?? 0,
                         'failed_count' => count($failedInserts),
                         'duplicate_count' => $validationResult['statistics']['duplicate_rows'] ?? 0,
                         'total_rows' => $validationResult['statistics']['total_rows'] ?? 0,

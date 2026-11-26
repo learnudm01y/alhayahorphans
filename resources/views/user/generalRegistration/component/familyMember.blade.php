@@ -835,20 +835,6 @@
                         window.setupDocumentUploadHandlersForMember(form, idx);
                     });
                 }
-
-                // 🆕 تطبيق تحسينات DeviceImageSource بعد إعداد المعالجات المخصصة
-                setTimeout(() => {
-                    if (window.DeviceImageSource && window.DeviceImageSource.enhance) {
-                        console.log('🔧 [FamilyMember] إعادة تفعيل DeviceImageSource بعد إعادة الفهرسة');
-                        try {
-                            window.DeviceImageSource.enhance();
-                        } catch (error) {
-                            console.error('❌ [FamilyMember] خطأ في تطبيق DeviceImageSource:', error);
-                        }
-                    } else {
-                        console.log('⚠️ [FamilyMember] DeviceImageSource غير متوفر');
-                    }
-                }, 500);
             }, 150);
         }
 

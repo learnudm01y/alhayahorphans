@@ -848,9 +848,22 @@
                                     </div>
                                     <div
                                         style="background: #e0f2f1; padding: 8px; border-radius: 4px; text-align: center; grid-column: span 2;">
-                                        <div style="font-size: 11px; color: #666;">متجاوَزة (مرتبطة بمعيل مسبقاً)</div>
+                                        <div style="font-size: 11px; color: #666;">متجاوَزة (تكرار مطابق داخل الملف)</div>
                                         <div style="font-size: 18px; font-weight: 600; color: #00897b;"
                                             id="val-skipped-rows">0</div>
+                                    </div>
+                                    <div
+                                        style="background: #ede7f6; padding: 8px; border-radius: 4px; text-align: center; grid-column: span 2;">
+                                        <div style="font-size: 11px; color: #666;">الإجراء المخطط لأفراد الأسرة</div>
+                                        <div style="font-size: 13px; font-weight: 600; color: #5e35b1;"
+                                            id="val-planned-actions">—</div>
+                                    </div>
+                                    <div
+                                        style="background: #fbe9e7; padding: 8px; border-radius: 4px; text-align: center; grid-column: span 2; display: none;"
+                                        id="val-conflict-card">
+                                        <div style="font-size: 11px; color: #666;">متعارضة (لن تُعدَّل أو تُنقل)</div>
+                                        <div style="font-size: 18px; font-weight: 600; color: #d84315;"
+                                            id="val-conflict-rows">0</div>
                                     </div>
                                 </div>
 
@@ -1710,9 +1723,23 @@
             const warningsCount = (report.warnings && Array.isArray(report.warnings)) ? report.warnings.length : 0;
             document.getElementById('val-warnings').textContent = warningsCount;
 
-            // الصفوف المتجاوَزة (أفراد مرتبطون بمعيل مسبقاً / مكررون داخل الملف)
+            // الصفوف المتجاوَزة (تكرار مطابق داخل نفس الملف)
             const skippedRows = statistics.skipped_rows || 0;
             document.getElementById('val-skipped-rows').textContent = skippedRows;
+
+            // الإجراء المخطط لجدول أفراد الأسرة
+            const plannedInsert = statistics.insert_rows || 0;
+            const plannedUpdate = statistics.update_rows || 0;
+            const plannedLink = statistics.link_rows || 0;
+            const conflictRows = statistics.conflict_rows || 0;
+            const plannedParts = [];
+            if (plannedInsert > 0) plannedParts.push(`إدخال ${plannedInsert}`);
+            if (plannedUpdate > 0) plannedParts.push(`تحديث ${plannedUpdate}`);
+            if (plannedLink > 0) plannedParts.push(`ربط وتحديث ${plannedLink}`);
+            document.getElementById('val-planned-actions').textContent =
+                plannedParts.length > 0 ? plannedParts.join(' • ') : '—';
+            document.getElementById('val-conflict-card').style.display = conflictRows > 0 ? 'block' : 'none';
+            document.getElementById('val-conflict-rows').textContent = conflictRows;
 
             // Determine message type and content
             const validRows = statistics.valid_rows || 0;
@@ -1735,9 +1762,9 @@
 
             if (invalidRows === 0 && validRows > 0) {
                 messageDiv.style.cssText = 'background: #e8f5e9; color: #2e7d32; border-right: 3px solid #4caf50;';
-                let message = `✅ جميع الصفوف صحيحة! يمكنك المتابعة بإدخال ${validRows} صف.`;
+                let message = `✅ جميع الصفوف صحيحة! يمكنك المتابعة (${plannedParts.length > 0 ? plannedParts.join(' • ') : validRows + ' صف'}).`;
                 if (skippedRows > 0) {
-                    message += ` (تم تجاوز ${skippedRows} صف مرتبط بمعيل مسبقاً)`;
+                    message += ` تم تجاوز ${skippedRows} تكرار مطابق داخل الملف.`;
                 }
                 if (warningsCount > 0) {
                     message += ` (${warningsCount} تحذير)`;
@@ -1746,15 +1773,21 @@
             } else if (validRows === 0 && invalidRows > 0) {
                 messageDiv.style.cssText = 'background: #ffebee; color: #c62828; border-right: 3px solid #f44336;';
                 let message = `❌ جميع الصفوف تحتوي على أخطاء!`;
+                if (conflictRows > 0) {
+                    message += ` ${conflictRows} صف متعارض لن يُعدَّل أو يُنقل.`;
+                }
                 if (hasCriticalErrors) {
                     message += ` يوجد ${criticalErrorsCount} صف بأخطاء حرجة (حقول إلزامية مفقودة).`;
                 }
                 messageDiv.textContent = message;
             } else if (validRows > 0 && invalidRows > 0) {
                 messageDiv.style.cssText = 'background: #fff3e0; color: #e65100; border-right: 3px solid #ff9800;';
-                let message = `⚠️ ${validRows} صف صحيح، ${invalidRows} صف خاطئ.`;
+                let message = `⚠️ ${plannedParts.length > 0 ? plannedParts.join(' • ') : validRows + ' صف'}، و${invalidRows} صف يحتوي على أخطاء.`;
+                if (conflictRows > 0) {
+                    message += ` ${conflictRows} صف متعارض لن يُعدَّل.`;
+                }
                 if (skippedRows > 0) {
-                    message += ` تم تجاوز ${skippedRows} صف مرتبط بمعيل مسبقاً.`;
+                    message += ` تم تجاوز ${skippedRows} تكرار مطابق.`;
                 }
                 if (hasCriticalErrors) {
                     message += ` (${criticalErrorsCount} صف بأخطاء حرجة)`;
@@ -1766,7 +1799,7 @@
             } else if (validRows === 0 && invalidRows === 0 && skippedRows > 0) {
                 messageDiv.style.cssText = 'background: #e0f2f1; color: #00695c; border-right: 3px solid #00897b;';
                 messageDiv.textContent =
-                    `⏭️ لا توجد بيانات جديدة للإدخال: تم تجاوز ${skippedRows} صفاً لأن هؤلاء الأفراد مسجّلون ومرتبطون بمعيل مسبقاً.`;
+                    `⏭️ لا توجد صفوف للتنفيذ: تم دمج ${skippedRows} تكرار مطابق داخل الملف.`;
             } else {
                 messageDiv.style.cssText = 'background: #ffebee; color: #c62828; border-right: 3px solid #f44336;';
                 messageDiv.textContent = `❌ لا توجد بيانات صحيحة للإدخال`;
@@ -1913,7 +1946,10 @@
             if (!importResult) return;
 
             // استخراج البيانات الحقيقية من import_result
-            const successCount = importResult.imported_rows || 0;
+            const insertedCount = importResult.imported_rows || 0;
+            const updatedCount = importResult.updated_rows || 0;
+            const linkedCount = importResult.linked_rows || 0;
+            const successCount = insertedCount + updatedCount + linkedCount;
             const duplicateCount = importResult.duplicate_count || 0;
             const failedCount = importResult.failed_count || 0;
             const totalCount = successCount + duplicateCount + failedCount;

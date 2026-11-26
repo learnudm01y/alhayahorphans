@@ -498,10 +498,7 @@ async function verifyFaceOnServer(canvas, fileType, clientCode) {
 
 // دالة تحويل HEIC إلى JPEG
 async function convertHeicToJpeg(file) {
-  const isHeic = file.type === 'image/heic' || file.type === 'image/heif' ||
-                 file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif');
-
-  if (!isHeic) return file;
+  if (!isHeicFile(file)) return file;
 
   console.log('[convertHeicToJpeg] تحويل ملف HEIC إلى JPEG:', file.name);
 
@@ -558,9 +555,7 @@ window.showCropperModal = async function(file, callback) {
   }
 
   // فحص: هل الملف صورة (بما فيها HEIC)?
-  const isImage = (file.type && file.type.startsWith('image/')) ||
-                  file.name.toLowerCase().endsWith('.heic') ||
-                  file.name.toLowerCase().endsWith('.heif');
+  const isImage = isImageAttachmentFile(file);
 
   if (!isImage) {
     console.error('[showCropperModal] الملف ليس صورة:', file.type);
@@ -630,10 +625,6 @@ window.showCropperModal = async function(file, callback) {
   let objectUrl = null;
 
   // وظائف مساعدة
-  function isMobileDevice() {
-    return /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-  }
-
   function enableControls(enable = true) {
     elements.cropBtn.disabled = !enable;
     ['MoveUp', 'MoveDown', 'MoveLeft', 'MoveRight', 'ZoomIn', 'ZoomOut', 'RotateRight'].forEach(action => {
