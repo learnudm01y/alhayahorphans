@@ -12,7 +12,6 @@ namespace Alhayah.SyncService.Tests;
 public sealed class IdentityMapConnectorTests
 {
     private const string LaravelSourceId = "laravel:synthetic-a";
-    private const string LocalSourceId = "local:synthetic-b";
 
     [Fact]
     public async Task ApplyPushResultsAsync_AfterCanonicalIdArrives_RewritesLocalAndAttachmentReferencesOnce()
@@ -151,7 +150,7 @@ public sealed class IdentityMapConnectorTests
         EntityReferenceKind kind)
     {
         Guid clientUuid = Guid.NewGuid();
-        SyncEnvelope envelope = SynchronizationTestHarness.CreateEnvelope(LocalSourceId, operationId, clientUuid) with
+        SyncEnvelope envelope = SynchronizationTestHarness.CreateEnvelope(LaravelSourceId, operationId, clientUuid) with
         {
             Entity = new EntityDescriptor
             {

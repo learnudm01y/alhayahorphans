@@ -178,7 +178,7 @@ public sealed class LocalServerSyncConnector : ISyncChannel
             }
             catch (JsonException)
             {
-                SetStageFailure(stages, "Auth", "invalid_response");
+                SetStageFailure(stages, "Compatibility", "invalid_response");
                 return Result(stages);
             }
 

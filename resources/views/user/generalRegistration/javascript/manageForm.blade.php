@@ -911,11 +911,12 @@
                 const validTempPath = path => typeof path === 'string' && path === path.trim()
                     && path.includes('/') && !/^[\/\\]|[:<>\x00-\x1f?#]/.test(path)
                     && path.split(/[\/\\]/).every(part => part && part !== '.' && part !== '..');
-                const usableDocument = (doc, key, personId) => {
+                // personId لا يُقارن عمداً: يُلتقط وقت الرفع ويتقادم عند تعديل رقم الهوية لاحقاً،
+                // بينما يربط الخادم المرفق بمفتاح المنطقة (personKey) وليس بـ personId.
+                const usableDocument = (doc, key) => {
                     if (!doc || doc.status !== 'completed' || !doc.processedFile) return false;
                     if (['pending', 'processing', 'uploading'].includes(doc.uploadStatus)) return false;
                     if (doc.personKey && doc.personKey !== key) return false;
-                    if (personId && doc.personId && String(doc.personId).trim() !== personId) return false;
                     if (doc.tempPath) return validTempPath(doc.tempPath);
                     return doc.processedFile instanceof Blob && doc.processedFile.size > 0;
                 };
@@ -942,7 +943,7 @@
                         && !option.closest('optgroup[disabled]') && option.dataset.enabled !== 'false' && option.dataset.enabled !== '0');
                     const tasks = docsFor(key);
                     const enabledTasks = tasks.filter(doc => doc && options.some(option => option.value === String(doc.type || doc.docType || '')));
-                    if (tasks.some(doc => !usableDocument(doc, key, person.id))) {
+                    if (tasks.some(doc => !usableDocument(doc, key))) {
                         add(select, `يرجى إكمال معالجة ورفع المرفقات أو حذف المرفق غير الصالح وإعادة رفعه — ${person.label}.`);
                     }
                     options.filter(option => option.dataset.required === 'true').forEach(option => {

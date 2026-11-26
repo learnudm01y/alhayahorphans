@@ -12,6 +12,8 @@ using Alhayah.LocalData.Services;
 using Alhayah.SyncService.Configuration;
 using Alhayah.SyncService.Connectors;
 using Alhayah.SyncService.Cursors;
+using Alhayah.SyncService.Identity;
+using Alhayah.SyncService.Outbox;
 using Alhayah.SyncService.Realtime;
 using Alhayah.SyncService.Security;
 using Alhayah.SyncService.Services;
@@ -555,6 +557,116 @@ public sealed class LocalConnectorTests
         Assert.Equal("Pending", await OutboxStatusAsync(fixture, localOperationId));
         Assert.Equal("Sent", await OutboxStatusAsync(fixture, laravelOperationId));
         Assert.Equal(laravelBefore, await fixture.Cursors.GetAsync(LaravelSourceId, "changes"));
+    }
+
+    [Fact]
+    public async Task LaravelOutboxProcessor_WithPendingLocalOperation_SendsOnlyLaravelAndPreservesLocalRetryState()
+    {
+        Guid localOperationId = Guid.NewGuid();
+        Guid laravelOperationId = Guid.NewGuid();
+        DateTimeOffset localAttempt = DateTimeOffset.Parse("2026-11-25T09:00:00Z");
+        await using ConnectorFixture fixture = await ConnectorFixture.CreateAsync(_ =>
+            JsonResponse("{}", HttpStatusCode.Unauthorized));
+        await SeedAidAsync(fixture.Harness, localOperationId, Guid.NewGuid());
+        await fixture.Harness.SeedCreateAsync(LaravelSourceId, laravelOperationId, Guid.NewGuid());
+        await using (LocalStoreDbContext context = fixture.Harness.Store.CreateContext())
+        {
+            OutboxOperation local = await context.OutboxOperations.SingleAsync(operation =>
+                operation.OperationId == localOperationId);
+            local.AttemptCount = 7;
+            local.LastAttemptAtUtc = localAttempt;
+            await context.SaveChangesAsync();
+        }
+
+        FakeOutboxTransport transport = new();
+        OutboxProcessor processor = new(
+            fixture.Harness.Store,
+            transport,
+            new RetryPolicy(
+                new RetryOptions
+                {
+                    InitialDelay = TimeSpan.FromMilliseconds(1),
+                    MaximumDelay = TimeSpan.FromMilliseconds(1)
+                },
+                () => 0),
+            TimeProvider.System,
+            new RecordingLogger<OutboxProcessor>());
+
+        OutboxPassResult result = await processor.ProcessPendingAsync(CancellationToken.None);
+
+        Assert.Equal(1, result.SentCount);
+        Assert.Equal(laravelOperationId, Assert.Single(transport.SendOperationIds));
+        Assert.Equal("Sent", await OutboxStatusAsync(fixture, laravelOperationId));
+        Assert.Equal("Pending", await OutboxStatusAsync(fixture, localOperationId));
+        await using LocalStoreDbContext verification = fixture.Harness.Store.CreateContext();
+        OutboxOperation localAfter = await verification.OutboxOperations.SingleAsync(operation =>
+            operation.OperationId == localOperationId);
+        Assert.Equal(7, localAfter.AttemptCount);
+        Assert.Equal(localAttempt, localAfter.LastAttemptAtUtc);
+    }
+
+    [Fact]
+    public async Task LaravelIdentityResolution_DoesNotRewritePendingLocalEnvelopeOrRetryState()
+    {
+        Guid operationId = Guid.NewGuid();
+        Guid clientUuid = Guid.NewGuid();
+        Guid targetUuid = Guid.NewGuid();
+        DateTimeOffset localAttempt = DateTimeOffset.Parse("2026-11-25T09:30:00Z");
+        await using ConnectorFixture fixture = await ConnectorFixture.CreateAsync(_ => JsonResponse("{}"));
+        SyncEnvelope envelope = LocalEnvelope(operationId, clientUuid, "AidOperation") with
+        {
+            Entity = new EntityDescriptor
+            {
+                EntityType = "AidOperation",
+                ClientUuid = clientUuid,
+                CanonicalId = null,
+                References =
+                [
+                    new EntityReference
+                    {
+                        FieldName = "entitlementId",
+                        TargetEntityType = "Entitlement",
+                        TargetClientUuid = targetUuid,
+                        TargetCanonicalId = null,
+                        Kind = EntityReferenceKind.Field
+                    }
+                ]
+            }
+        };
+        await SeedLocalEntityAsync(
+            fixture.Harness,
+            envelope,
+            "{\"aidType\":\"SyntheticAid\",\"amount\":12.50,\"currencyCode\":\"USD\",\"occurredAtUtc\":\"2026-11-25T10:00:00Z\"}",
+            "SyntheticAid");
+        string originalEnvelopeJson;
+        await using (LocalStoreDbContext context = fixture.Harness.Store.CreateContext())
+        {
+            context.ClientIdentityMap.Add(new ClientIdentityMappingEntity
+            {
+                ClientUuid = targetUuid,
+                EntityType = "Entitlement",
+                CanonicalId = "synthetic-laravel-entitlement",
+                CreatedAtUtc = localAttempt,
+                ResolvedAtUtc = localAttempt
+            });
+            OutboxOperation local = await context.OutboxOperations.SingleAsync(operation =>
+                operation.OperationId == operationId);
+            local.AttemptCount = 3;
+            local.LastAttemptAtUtc = localAttempt;
+            originalEnvelopeJson = local.EnvelopeJson;
+            await context.SaveChangesAsync();
+        }
+
+        ClientIdentityMapStore identities = new(fixture.Harness.Store, TimeProvider.System);
+        int changed = await identities.ResolvePendingReferencesAsync(CancellationToken.None);
+
+        Assert.Equal(0, changed);
+        await using LocalStoreDbContext verification = fixture.Harness.Store.CreateContext();
+        OutboxOperation localAfter = await verification.OutboxOperations.SingleAsync(operation =>
+            operation.OperationId == operationId);
+        Assert.Equal(originalEnvelopeJson, localAfter.EnvelopeJson);
+        Assert.Equal(3, localAfter.AttemptCount);
+        Assert.Equal(localAttempt, localAfter.LastAttemptAtUtc);
     }
 
     [Fact]

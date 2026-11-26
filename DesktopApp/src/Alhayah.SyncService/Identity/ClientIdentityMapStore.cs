@@ -139,7 +139,8 @@ public sealed class ClientIdentityMapStore
         CancellationToken cancellationToken)
     {
         List<OutboxOperation> operations = await context.OutboxOperations
-            .Where(operation => operation.Status == "Pending")
+            .Where(operation => operation.Status == "Pending" &&
+                operation.SourceId.StartsWith("laravel:", StringComparison.Ordinal))
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
         int changed = 0;

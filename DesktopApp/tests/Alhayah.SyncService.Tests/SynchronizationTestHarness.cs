@@ -191,6 +191,8 @@ internal sealed class FakeOutboxTransport : IOutboxTransport
 {
     private readonly Queue<Func<OutboxDelivery, CancellationToken, Task>> _steps = new();
 
+    public string SourceId => "laravel:synthetic-a";
+
     public List<Guid> SendOperationIds { get; } = [];
 
     public HashSet<Guid> AppliedOperationIds { get; } = [];

@@ -14,6 +14,8 @@ public sealed record OutboxDelivery(Guid OperationId, string SourceId, SyncEnvel
 
 public interface IOutboxTransport
 {
+    string SourceId { get; }
+
     Task SendAsync(OutboxDelivery delivery, CancellationToken cancellationToken);
 }
 
@@ -32,6 +34,7 @@ public sealed class OutboxProcessor
 {
     private readonly ISyncServiceStore _store;
     private readonly IOutboxTransport _transport;
+    private readonly string _sourceId;
     private readonly RetryPolicy _retryPolicy;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<OutboxProcessor> _logger;
@@ -46,6 +49,7 @@ public sealed class OutboxProcessor
     {
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _transport = transport ?? throw new ArgumentNullException(nameof(transport));
+        _sourceId = new SyncSourceId(transport.SourceId).Value;
         _retryPolicy = retryPolicy ?? throw new ArgumentNullException(nameof(retryPolicy));
         _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -59,7 +63,9 @@ public sealed class OutboxProcessor
             IReadOnlyList<OutboxOperation> operations;
             await using (LocalStoreDbContext context = _store.CreateContext())
             {
-                operations = await new OutboxRepository(context).GetPendingAsync(cancellationToken).ConfigureAwait(false);
+                operations = (await new OutboxRepository(context).GetPendingAsync(cancellationToken).ConfigureAwait(false))
+                    .Where(operation => string.Equals(operation.SourceId, _sourceId, StringComparison.Ordinal))
+                    .ToArray();
             }
 
             int sentCount = 0;
