@@ -201,6 +201,55 @@ public sealed class LocalConnectorTests
     }
 
     [Fact]
+    public async Task PullAsync_WithCanonicalIdUsedByLaravel_KeepsLocalIdentitySourceQualified()
+    {
+        Guid localUuid = Guid.NewGuid();
+        Guid laravelUuid = Guid.NewGuid();
+        string sharedCanonicalId = localUuid.ToString("D");
+        await using ConnectorFixture fixture = await ConnectorFixture.CreateAsync(_ => JsonResponse(FeedJson(
+            "cursor-40",
+            false,
+            ChangeJson(40, localUuid, "Create", "{\"aidType\":\"Synthetic isolated aid\"}"))));
+        await using (LocalStoreDbContext context = fixture.Harness.Store.CreateContext())
+        {
+            context.CachedEntities.Add(new CachedEntity
+            {
+                ClientUuid = laravelUuid,
+                SourceId = LaravelSourceId,
+                EntityType = "AidOperation",
+                CanonicalId = sharedCanonicalId,
+                PayloadJson = "{\"aidType\":\"Synthetic Laravel aid\"}",
+                SearchTextNormalized = "SYNTHETIC LARAVEL AID",
+                RowVersion = "laravel-row",
+                CreatedAtUtc = DateTimeOffset.Parse("2026-11-25T09:00:00Z"),
+                UpdatedAtUtc = DateTimeOffset.Parse("2026-11-25T09:00:00Z")
+            });
+            context.ClientIdentityMap.Add(new ClientIdentityMappingEntity
+            {
+                ClientUuid = laravelUuid,
+                EntityType = "AidOperation",
+                CanonicalId = sharedCanonicalId,
+                CreatedAtUtc = DateTimeOffset.Parse("2026-11-25T09:00:00Z"),
+                ResolvedAtUtc = DateTimeOffset.Parse("2026-11-25T09:00:00Z")
+            });
+            await context.SaveChangesAsync();
+        }
+
+        await fixture.Connector.PullAsync(CancellationToken.None);
+
+        await using LocalStoreDbContext verification = fixture.Harness.Store.CreateContext();
+        Assert.Equal(
+            $"local:{localUuid:D}",
+            (await verification.CachedEntities.SingleAsync(entity =>
+                entity.SourceId == SourceId && entity.ClientUuid == localUuid)).CanonicalId);
+        Assert.Equal(
+            sharedCanonicalId,
+            (await verification.CachedEntities.SingleAsync(entity =>
+                entity.SourceId == LaravelSourceId && entity.ClientUuid == laravelUuid)).CanonicalId);
+        Assert.Equal(2, await verification.ClientIdentityMap.CountAsync());
+    }
+
+    [Fact]
     public async Task PullAsync_WithRejectedCursor_RestartsFullChangeFeedReplay()
     {
         Guid clientUuid = Guid.NewGuid();
@@ -237,6 +286,52 @@ public sealed class LocalConnectorTests
         Assert.Contains(fixture.Handler.Requests, request =>
             request.PathAndQuery.Contains("cursor=expired-cursor", StringComparison.Ordinal));
         Assert.Contains(fixture.Handler.Requests, request => request.PathAndQuery == "/local/changes?limit=2");
+        await using LocalStoreDbContext context = fixture.Harness.Store.CreateContext();
+        Assert.Single(await context.CachedEntities.Where(entity => entity.ClientUuid == clientUuid).ToArrayAsync());
+    }
+
+    [Fact]
+    public async Task PullAsync_WhenLaterCursorRejected_DiscardsEarlierResultDuplicates()
+    {
+        Guid clientUuid = Guid.NewGuid();
+        await using ConnectorFixture fixture = await ConnectorFixture.CreateAsync(request =>
+        {
+            if (request.PathAndQuery.Contains("cursor=cursor-10", StringComparison.Ordinal))
+            {
+                return JsonResponse(FeedJson(
+                    "expired-next",
+                    true,
+                    ChangeJson(11, clientUuid, "Create", "{\"aidType\":\"Synthetic partial replay\"}")));
+            }
+
+            if (request.PathAndQuery.Contains("cursor=expired-next", StringComparison.Ordinal))
+            {
+                return JsonResponse("{\"message\":\"full reconciliation required\"}", HttpStatusCode.BadRequest);
+            }
+
+            return JsonResponse(FeedJson(
+                "replay-complete",
+                false,
+                ChangeJson(11, clientUuid, "Create", "{\"aidType\":\"Synthetic partial replay\"}")));
+        });
+        await fixture.Cursors.CommitPageAsync(
+            SourceId,
+            "local-operations",
+            new RemoteChangePage
+            {
+                NextCursor = "cursor-10",
+                LastChangeLogId = 10,
+                CompletesReconciliation = false,
+                Changes = []
+            },
+            CancellationToken.None);
+
+        LocalPullResult result = await fixture.Connector.PullAsync(CancellationToken.None);
+
+        Assert.Single(result.Changes);
+        Assert.Equal(1, result.PageCount);
+        Assert.Equal("replay-complete", result.Cursor.Cursor);
+        Assert.Equal(3, fixture.Handler.Requests.Count);
         await using LocalStoreDbContext context = fixture.Harness.Store.CreateContext();
         Assert.Single(await context.CachedEntities.Where(entity => entity.ClientUuid == clientUuid).ToArrayAsync());
     }
@@ -312,6 +407,9 @@ public sealed class LocalConnectorTests
         Assert.Equal(operationId, body.RootElement.GetProperty("operationId").GetGuid());
         Assert.Equal($"desktop:{operationId:N}", body.RootElement.GetProperty("idempotencyKey").GetString());
         Assert.Equal(operationId, body.RootElement.GetProperty("envelope").GetProperty("operationId").GetGuid());
+        Assert.Equal(
+            $"local:{clientUuid:D}",
+            body.RootElement.GetProperty("envelope").GetProperty("entity").GetProperty("canonicalId").GetString());
         Assert.Equal("/local/operations/aid", fixture.Handler.Requests[0].PathAndQuery);
     }
 
@@ -407,7 +505,7 @@ public sealed class LocalConnectorTests
                         FieldName = "voucherId",
                         TargetEntityType = "Voucher",
                         TargetClientUuid = voucherId,
-                        TargetCanonicalId = voucherId.ToString("D"),
+                        TargetCanonicalId = $"local:{voucherId:D}",
                         Kind = EntityReferenceKind.Field
                     }
                 ]
@@ -489,6 +587,93 @@ public sealed class LocalConnectorTests
         Assert.Equal("Pending", synchronized.Status);
         Assert.Equal("Pending", await OutboxStatusAsync(fixture, operationId));
         Assert.Equal(2, fixture.Handler.Requests.Count(request => request.Method == HttpMethod.Post));
+    }
+
+    [Fact]
+    public async Task PushPendingAsync_WithUnsupportedOperation_ContinuesToLaterSupportedOperation()
+    {
+        Guid unsupportedOperationId = Guid.NewGuid();
+        Guid unsupportedUuid = Guid.NewGuid();
+        Guid supportedOperationId = Guid.NewGuid();
+        Guid supportedUuid = Guid.NewGuid();
+        await using ConnectorFixture fixture = await ConnectorFixture.CreateAsync(request =>
+        {
+            if (request.Method == HttpMethod.Get && request.PathAndQuery.StartsWith("/local/changes", StringComparison.Ordinal))
+            {
+                return JsonResponse(FeedJson("after-supported", false));
+            }
+
+            return JsonResponse(OperationResultJson(supportedOperationId, supportedUuid, "Completed"));
+        });
+        await SeedAidAsync(fixture.Harness, unsupportedOperationId, unsupportedUuid);
+        await using (LocalStoreDbContext context = fixture.Harness.Store.CreateContext())
+        {
+            OutboxOperation create = await context.OutboxOperations.SingleAsync(operation =>
+                operation.OperationId == unsupportedOperationId);
+            create.Status = "Sent";
+            CachedEntity cached = await context.CachedEntities.SingleAsync(entity => entity.ClientUuid == unsupportedUuid);
+            SyncEnvelope patch = LocalEnvelope(Guid.NewGuid(), unsupportedUuid, "AidOperation") with
+            {
+                OperationType = SyncOperationType.Update,
+                RowVersion = cached.RowVersion,
+                OccurredAtUtc = cached.UpdatedAtUtc.AddSeconds(1),
+                Patches =
+                [
+                    new FieldPatch
+                    {
+                        FieldName = "notes",
+                        LocalValue = JsonSerializer.SerializeToElement("Synthetic unsupported patch"),
+                        Criticality = FieldCriticality.Mergeable
+                    }
+                ]
+            };
+            await new UnitOfWork(context).PatchAsync(
+                patch,
+                "Synthetic unsupported patch",
+                new LocalAuditContext(null, "synthetic.write", 1));
+            await context.SaveChangesAsync();
+        }
+        await SeedAidAsync(
+            fixture.Harness,
+            supportedOperationId,
+            supportedUuid,
+            DateTimeOffset.Parse("2026-11-25T10:00:02Z"));
+
+        SynchronizeNowResult result = await fixture.Connector.SynchronizeNowAsync(CancellationToken.None);
+
+        Assert.Equal("Pending", result.Status);
+        Assert.Equal("Sent", await OutboxStatusAsync(fixture, supportedOperationId));
+        await using LocalStoreDbContext verification = fixture.Harness.Store.CreateContext();
+        OutboxOperation[] pending = await verification.OutboxOperations
+            .Where(operation => operation.Status == "Pending")
+            .ToArrayAsync();
+        OutboxOperation unsupported = Assert.Single(pending);
+        Assert.Equal(SyncOperationType.Update.ToString(), unsupported.OperationType);
+        Assert.Single(fixture.Handler.Requests.Where(request => request.Method == HttpMethod.Post));
+    }
+
+    [Fact]
+    public async Task PushAsync_WithIncompleteCompletedResult_DoesNotAcknowledgeOutbox()
+    {
+        Guid operationId = Guid.NewGuid();
+        Guid clientUuid = Guid.NewGuid();
+        await using ConnectorFixture fixture = await ConnectorFixture.CreateAsync(request =>
+        {
+            if (request.Method == HttpMethod.Get && request.PathAndQuery.StartsWith("/local/changes", StringComparison.Ordinal))
+            {
+                return JsonResponse(FeedJson("after-invalid-result", false));
+            }
+
+            return JsonResponse(
+                $"{{\"operation_id\":\"{operationId}\",\"operation_type\":\"aid.create\",\"status\":\"Completed\",\"entity_id\":null,\"row_version\":null,\"conflict_type\":null,\"expires_at\":\"2027-02-23T10:00:00Z\"}}");
+        });
+        await SeedAidAsync(fixture.Harness, operationId, clientUuid);
+
+        SynchronizeNowResult result = await fixture.Connector.SynchronizeNowAsync(CancellationToken.None);
+
+        Assert.Equal("Pending", result.Status);
+        Assert.Equal("Pending", await OutboxStatusAsync(fixture, operationId));
+        Assert.Single(fixture.Handler.Requests.Where(request => request.Method == HttpMethod.Post));
     }
 
     [Fact]
@@ -829,9 +1014,13 @@ public sealed class LocalConnectorTests
     private static Task SeedAidAsync(
         SynchronizationTestHarness harness,
         Guid operationId,
-        Guid clientUuid)
+        Guid clientUuid,
+        DateTimeOffset? occurredAtUtc = null)
     {
-        SyncEnvelope envelope = LocalEnvelope(operationId, clientUuid, "AidOperation");
+        SyncEnvelope envelope = LocalEnvelope(operationId, clientUuid, "AidOperation") with
+        {
+            OccurredAtUtc = occurredAtUtc ?? DateTimeOffset.Parse("2026-11-25T10:00:00Z")
+        };
         string payload = JsonSerializer.Serialize(new
         {
             aidType = "SyntheticAid",

@@ -244,6 +244,8 @@ public sealed class LocalServerSyncConnector : ISyncChannel
                 state = await _cursors.GetAsync(SourceId, Channel, cancellationToken).ConfigureAwait(false);
                 pageCursor = null;
                 lastChangeLogId = 0;
+                changes.Clear();
+                pageCount = 0;
                 restartedAfterRejectedCursor = true;
                 continue;
             }
@@ -329,6 +331,12 @@ public sealed class LocalServerSyncConnector : ISyncChannel
             throw new LocalSyncException("invalid_response", "The Local Server returned a different operation identifier.");
         }
 
+        if (result.Status == LocalOperationStatus.Completed &&
+            (result.EntityId != envelope.Entity.ClientUuid || result.RowVersion is null or <= 0))
+        {
+            throw new LocalSyncException("invalid_response", "The Local Server returned incomplete commit metadata.");
+        }
+
         return result;
     }
 
@@ -399,12 +407,19 @@ public sealed class LocalServerSyncConnector : ISyncChannel
             {
                 SyncEnvelope envelope = JsonSerializer.Deserialize<SyncEnvelope>(envelopeJson)
                     ?? throw new JsonException("A pending Local Server outbox envelope is empty.");
-                LocalOperationResult result = await PushAsync(envelope, cancellationToken).ConfigureAwait(false);
-                if (result.Status == LocalOperationStatus.Completed)
+                try
                 {
-                    await AcknowledgeCompletedAsync(operationId, cancellationToken).ConfigureAwait(false);
+                    LocalOperationResult result = await PushAsync(envelope, cancellationToken).ConfigureAwait(false);
+                    if (result.Status == LocalOperationStatus.Completed)
+                    {
+                        await AcknowledgeCompletedAsync(operationId, cancellationToken).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        pending = true;
+                    }
                 }
-                else
+                catch (LocalSyncException exception) when (exception.ErrorCode == "unsupported_operation")
                 {
                     pending = true;
                 }
@@ -482,7 +497,7 @@ public sealed class LocalServerSyncConnector : ISyncChannel
 
         envelope = JsonSerializer.Deserialize<SyncEnvelope>(operation.EnvelopeJson)
             ?? throw new JsonException("A Local Server outbox envelope is empty.");
-        envelope = WithoutRequestSnapshot(envelope);
+        envelope = WithoutRequestSnapshot(NormalizeLocalIdentity(envelope));
         CachedEntity? cached = await context.CachedEntities
             .AsNoTracking()
             .SingleOrDefaultAsync(
@@ -923,10 +938,26 @@ public sealed class LocalServerSyncConnector : ISyncChannel
         }
     }
 
+    private static SyncEnvelope NormalizeLocalIdentity(SyncEnvelope envelope)
+    {
+        EntityDescriptor entity = envelope.Entity with
+        {
+            CanonicalId = envelope.Entity.CanonicalId ?? LocalCanonicalId(envelope.Entity.ClientUuid),
+            References = envelope.Entity.References.Select(reference => reference with
+            {
+                TargetCanonicalId = reference.TargetCanonicalId ??
+                    (reference.TargetClientUuid is Guid targetUuid ? LocalCanonicalId(targetUuid) : null)
+            }).ToList()
+        };
+        return envelope with { Entity = entity };
+    }
+
+    private static string LocalCanonicalId(Guid clientUuid) => $"local:{clientUuid:D}";
+
     private static RemoteChange ToRemoteChange(LocalChangeFeedItem change)
     {
         bool deleted = change.OperationType == SyncOperationType.Delete;
-        string canonicalId = change.EntityId.ToString("D");
+        string canonicalId = LocalCanonicalId(change.EntityId);
         return new RemoteChange
         {
             ChangeId = change.ChangeLogId,

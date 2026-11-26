@@ -156,7 +156,19 @@
                                     'X-CSRF-TOKEN': csrfToken
                                 }
                             });
-                            if (!response.ok) throw new Error('فشل الرفع، رمز الخطأ: ' + response.status);
+                            if (!response.ok) {
+                                let serverMsg = '';
+                                try { serverMsg = (await response.clone().json()).error || ''; } catch (_) {}
+                                const err = new Error(serverMsg || ('فشل الرفع، رمز الخطأ: ' + response.status));
+                                if (response.status === 419) {
+                                    err.message = 'انتهت صلاحية الجلسة. حدّث الصفحة ثم أعد المحاولة.';
+                                    err.noRetry = true;
+                                } else if (response.status === 400 || response.status === 422) {
+                                    // رفض قاطع من الخادم (بيانات/نوع/حجم) — تكرار المحاولة لن يفيد
+                                    err.noRetry = true;
+                                }
+                                throw err;
+                            }
                             const result = await response.json();
                             if (result.complete) {
                                 if (onProgress) onProgress(100);
@@ -166,6 +178,7 @@
                             }
                             break; // تم الرفع بنجاح، انتقل للجزء التالي
                         } catch (e) {
+                            if (e && e.noRetry) throw e;
                             retries--;
                             console.error('حدث خطأ أثناء رفع الجزء ' + i + ' من الملف ' + fileName + '، محاولات متبقية: ' + retries, e);
                             if (retries === 0) throw e;
@@ -395,6 +408,76 @@
                 return id;
             }
 
+            // بدء/إعادة الرفع المجزأ لمهمة مكتملة المعالجة — يُستخدم تلقائياً بعد القص ومن زر إعادة المحاولة
+            function startChunkUpload(task, personKey) {
+                if (!task.processedFile || !(task.processedFile instanceof File || task.processedFile instanceof Blob)) return;
+                if (typeof window.uploadFileInChunks !== 'function') {
+                    task.uploadStatus = 'error';
+                    task.errorMessage = 'فشل الرفع: أداة الرفع غير متوفرة، حدّث الصفحة.';
+                    window.renderAttachmentTasksUI(personKey);
+                    return;
+                }
+
+                task.uploadStatus = 'uploading';
+                task.uploadProgress = 0;
+                task.errorMessage = null;
+
+                let currentFileId = 'temp';
+                const idInput = document.querySelector('input[name="file_id_number"]');
+                if (idInput && idInput.value) {
+                    currentFileId = idInput.value;
+                }
+
+                window.renderAttachmentTasksUI(personKey);
+
+                // تأخير بسيط لإعطاء الواجهة فرصة للتحديث قبل الرفع
+                setTimeout(() => {
+                    window.uploadFileInChunks(task.processedFile, currentFileId, (progress) => {
+                        task.uploadProgress = progress;
+                        window.renderAttachmentTasksUI(personKey);
+                    }).then(tempPath => {
+                        task.uploadStatus = 'done';
+                        task.tempPath = tempPath;
+                        window.renderAttachmentTasksUI(personKey);
+                    }).catch(err => {
+                        task.uploadStatus = 'error';
+                        task.errorMessage = 'فشل الرفع: ' + err.message;
+                        window.renderAttachmentTasksUI(personKey);
+                    });
+                }, 500);
+            }
+
+            function retryFailedTask(task, personKey) {
+                task.status = 'pending';
+                task.errorMessage = null;
+                window.renderAttachmentTasksUI(personKey);
+                window.processAttachment(task.id);
+            }
+
+            // عند فشل المعالجة لا تُترك المهمة صامتة: خيار فوري بإعادة المحاولة أو الحذف
+            function promptFailedAttachmentAction(id, personKey) {
+                const arr = allDocs.get(personKey) || [];
+                const task = arr.find(t => t.id === id);
+                if (!task || task.status !== 'failed') return;
+
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'تعذّرت معالجة المرفق',
+                    text: task.errorMessage || 'حدث خطأ أثناء معالجة المرفق.',
+                    showDenyButton: true,
+                    showCancelButton: true,
+                    confirmButtonText: 'إعادة المحاولة',
+                    denyButtonText: 'حذف المرفق',
+                    cancelButtonText: 'لاحقاً'
+                }).then(result => {
+                    if (result.isConfirmed) {
+                        retryFailedTask(task, personKey);
+                    } else if (result.isDenied) {
+                        removeAttachmentTask(personKey, id);
+                    }
+                });
+            }
+
             window.updateAttachmentTaskStatus = function updateAttachmentTaskStatus(id, status, processedFile = null, errorMessage = null) {
                 // عند اكتمال مهمة بنجاح (قص صورة)، احذف أي مهمة سابقة (فشلت أو قيد التنفيذ) لنفس الملف ولنفس الشخص ولنفس نوع الوثيقة
                 if (status === 'completed') {
@@ -430,35 +513,7 @@
                                 }
 
                                 // ------ الرفع التلقائي في الخلفية ------
-                                if (task.processedFile && (task.processedFile instanceof File || task.processedFile instanceof Blob)) {
-                                    task.uploadStatus = 'uploading';
-                                    task.uploadProgress = 0;
-                                    
-                                    // جلب رقم الهوية (fileIdNumber)
-                                    let currentFileId = 'temp';
-                                    const idInput = document.querySelector('input[name="file_id_number"]');
-                                    if (idInput && idInput.value) {
-                                        currentFileId = idInput.value;
-                                    }
-
-                                    // تأخير بسيط لإعطاء الواجهة فرصة للتحديث قبل الرفع
-                                    setTimeout(() => {
-                                        if (typeof window.uploadFileInChunks === 'function') {
-                                            window.uploadFileInChunks(task.processedFile, currentFileId, (progress) => {
-                                                task.uploadProgress = progress;
-                                                window.renderAttachmentTasksUI(personKey); // تحديث شريط التقدم
-                                            }).then(tempPath => {
-                                                task.uploadStatus = 'done';
-                                                task.tempPath = tempPath;
-                                                window.renderAttachmentTasksUI(personKey); // تحديث واجهة الانتهاء
-                                            }).catch(err => {
-                                                task.uploadStatus = 'error';
-                                                task.errorMessage = 'فشل الرفع: ' + err.message;
-                                                window.renderAttachmentTasksUI(personKey);
-                                            });
-                                        }
-                                    }, 500);
-                                }
+                                startChunkUpload(task, personKey);
                                 // ---------------------------------------
                             } else {
                                 // في الحالات الأخرى (processing/pending/failed) لا تفرض أي حماية على processedFile
@@ -477,6 +532,11 @@
                             معالج: task.isProcessed,
                             رسالة_خطأ: errorMessage
                         });
+
+                        // تنبيه فوري عند الانتقال إلى الفشل فقط (لا يتكرر عند تحديث فاشل لاحق)
+                        if (status === 'failed' && previousStatus !== 'failed') {
+                            setTimeout(() => promptFailedAttachmentAction(id, personKey), 0);
+                        }
 
                         // تحديث فوري للواجهة مع تأثيرات انتقالية سلسة
                         requestAnimationFrame(() => {
@@ -613,7 +673,7 @@
                 throw new Error('document-compression-failed');
             }
 
-            window.processAttachment = async function processAttachment(id) {
+            async function processAttachmentInternal(id) {
                 let task;
                 let personKey;
                 for (let [pk, arr] of allDocs.entries()) {
@@ -748,6 +808,16 @@
                     }
                 }
             }
+
+            // طابور معالجة تسلسلي: الصور المتعددة من المعرض تُقص واحدة تلو الأخرى على نفس
+            // المودال المشترك، فلا ينتهي مؤقت صورة وهي ما زالت تنتظر قص سابقتها.
+            let attachmentProcessingChain = Promise.resolve();
+            window.processAttachment = function processAttachment(id) {
+                attachmentProcessingChain = attachmentProcessingChain
+                    .catch(() => {})
+                    .then(() => processAttachmentInternal(id));
+                return attachmentProcessingChain;
+            };
 
             function showCropperModalPromise(file, timeoutMs = 120000, fileType = 'image') {
                 return new Promise((resolve, reject) => {
@@ -1209,6 +1279,23 @@
                             } else {
                                 console.warn('[renderAttachmentTasksUI] حالة مهمة غير معروفة (غير unknown):', safeStatus, task);
                             }
+                    }
+                    // إعادة المحاولة: فشل الرفع المجزأ يعيد الرفع، وفشل المعالجة يعيد القص
+                    if (safeStatus === 'completed' && task.uploadStatus === 'error') {
+                        const retryUploadBtn = document.createElement('button');
+                        retryUploadBtn.type = 'button';
+                        retryUploadBtn.className = 'btn btn-warning btn-sm mt-2';
+                        retryUploadBtn.textContent = 'إعادة محاولة الرفع';
+                        retryUploadBtn.onclick = function() { startChunkUpload(task, personKey); };
+                        cardBody.appendChild(retryUploadBtn);
+                    }
+                    if (safeStatus === 'failed') {
+                        const retryProcessBtn = document.createElement('button');
+                        retryProcessBtn.type = 'button';
+                        retryProcessBtn.className = 'btn btn-warning btn-sm mt-2';
+                        retryProcessBtn.textContent = 'إعادة المحاولة';
+                        retryProcessBtn.onclick = function() { retryFailedTask(task, personKey); };
+                        cardBody.appendChild(retryProcessBtn);
                     }
                     // delete feature from window.allDocs
                     const delBtn = document.createElement('button');

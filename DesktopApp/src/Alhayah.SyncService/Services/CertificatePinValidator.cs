@@ -26,7 +26,7 @@ public sealed class CertificatePinValidator
 
         try
         {
-            byte[] presentedPin = SHA256.HashData(certificate.PublicKey.GetSubjectPublicKeyInfo());
+            byte[] presentedPin = SHA256.HashData(certificate.PublicKey.ExportSubjectPublicKeyInfo());
             return _allowedPins.Any(pin => CryptographicOperations.FixedTimeEquals(pin, presentedPin));
         }
         catch (CryptographicException)
@@ -38,7 +38,7 @@ public sealed class CertificatePinValidator
     public static string ComputeSpkiPin(X509Certificate2 certificate)
     {
         ArgumentNullException.ThrowIfNull(certificate);
-        return Convert.ToHexString(SHA256.HashData(certificate.PublicKey.GetSubjectPublicKeyInfo()));
+        return Convert.ToHexString(SHA256.HashData(certificate.PublicKey.ExportSubjectPublicKeyInfo()));
     }
 
     private static byte[] ParsePin(string pin)

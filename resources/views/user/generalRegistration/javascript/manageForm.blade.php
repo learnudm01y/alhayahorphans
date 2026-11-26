@@ -913,12 +913,15 @@
                     && path.split(/[\/\\]/).every(part => part && part !== '.' && part !== '..');
                 // personId لا يُقارن عمداً: يُلتقط وقت الرفع ويتقادم عند تعديل رقم الهوية لاحقاً،
                 // بينما يربط الخادم المرفق بمفتاح المنطقة (personKey) وليس بـ personId.
-                const usableDocument = (doc, key) => {
-                    if (!doc || doc.status !== 'completed' || !doc.processedFile) return false;
-                    if (['pending', 'processing', 'uploading'].includes(doc.uploadStatus)) return false;
-                    if (doc.personKey && doc.personKey !== key) return false;
-                    if (doc.tempPath) return validTempPath(doc.tempPath);
-                    return doc.processedFile instanceof Blob && doc.processedFile.size > 0;
+                // تُعاد «علة» كل مرفق لتمييز رسالة الانتظار عن الفشل عن عدم الصلاحية.
+                const documentIssue = (doc, key) => {
+                    if (!doc) return 'invalid';
+                    if (doc.status === 'failed') return 'failed';
+                    if (doc.status !== 'completed' || !doc.processedFile) return 'processing';
+                    if (['pending', 'processing', 'uploading'].includes(doc.uploadStatus)) return 'uploading';
+                    if (doc.personKey && doc.personKey !== key) return 'invalid';
+                    if (doc.tempPath) return validTempPath(doc.tempPath) ? null : 'invalid';
+                    return (doc.processedFile instanceof Blob && doc.processedFile.size > 0) ? null : 'invalid';
                 };
                 const people = new Map([['main', { label: 'الوصي (المعيل)', id: namedValue('data_id_number') }]]);
                 family.forEach((card, index) => {
@@ -943,7 +946,22 @@
                         && !option.closest('optgroup[disabled]') && option.dataset.enabled !== 'false' && option.dataset.enabled !== '0');
                     const tasks = docsFor(key);
                     const enabledTasks = tasks.filter(doc => doc && options.some(option => option.value === String(doc.type || doc.docType || '')));
-                    if (tasks.some(doc => !usableDocument(doc, key))) {
+                    const issueGroups = { failed: 0, uploading: 0, processing: 0, invalid: 0 };
+                    tasks.forEach(doc => {
+                        const issue = documentIssue(doc, key);
+                        if (issue) issueGroups[issue]++;
+                    });
+                    if (issueGroups.failed) {
+                        add(select, `مرفق فشلت معالجته — ${person.label}. استخدم زر «إعادة المحاولة» على بطاقته أو احذفه وأعد رفعه.`);
+                    }
+                    if (issueGroups.uploading) {
+                        const progress = Math.max(0, ...tasks.filter(doc => doc && doc.uploadStatus === 'uploading').map(doc => doc.uploadProgress || 0));
+                        add(select, `الرفع ما زال جارياً (${progress}%) — ${person.label}. يرجى الانتظار حتى اكتمال الرفع ثم إعادة الحفظ.`);
+                    }
+                    if (issueGroups.processing) {
+                        add(select, `معالجة مرفق ما زالت جارية — ${person.label}. يرجى الانتظار ثم إعادة الحفظ.`);
+                    }
+                    if (issueGroups.invalid) {
                         add(select, `يرجى إكمال معالجة ورفع المرفقات أو حذف المرفق غير الصالح وإعادة رفعه — ${person.label}.`);
                     }
                     options.filter(option => option.dataset.required === 'true').forEach(option => {
@@ -1317,6 +1335,16 @@
                         // إذا كانت الاستجابة نصية والكود 200 فقط
                         else if (status === 200 && ok && typeof data === 'string') {
                             window.location.reload();
+                        }
+                        // انتهاء الجلسة (419): رسالة واضحة بدل الخطأ العام
+                        else if (status === 419) {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'انتهت الجلسة',
+                                text: 'انتهت صلاحية الجلسة. حدّث الصفحة ثم أعد المحاولة؛ قد يلزم إعادة إرفاق الوثائق.'
+                            });
+                            releaseSubmitLock();
+                            return;
                         }
                         // إذا كانت هناك أخطاء أخرى
                         else if (!ok) {
