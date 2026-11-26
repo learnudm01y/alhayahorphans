@@ -58,6 +58,21 @@
             .processing-overlay .small {
                 font-size: 0.6rem;
             }
+
+            .upload-progress-overlay .upload-percent {
+                font-size: 0.65rem;
+            }
+
+            .upload-progress-overlay .upload-bar {
+                width: 85%;
+                height: 5px;
+            }
+
+            .upload-success-mark {
+                width: 20px;
+                height: 20px;
+                font-size: 0.8rem;
+            }
         }
 
         /* تأثير النجاح */
@@ -69,6 +84,74 @@
             0% { transform: scale(1); }
             50% { transform: scale(1.05); background-color: #d4edda; }
             100% { transform: scale(1); background-color: white; }
+        }
+
+        /* طبقة تقدم الرفع فوق الصورة */
+        .upload-progress-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.45);
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            z-index: 2;
+        }
+
+        .upload-progress-overlay .upload-percent {
+            color: #fff;
+            font-size: 0.85rem;
+            font-weight: 700;
+        }
+
+        .upload-progress-overlay .upload-bar {
+            width: 70%;
+            height: 7px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .upload-progress-overlay .upload-bar-fill {
+            height: 100%;
+            background: #28a745;
+            transition: width 0.2s ease;
+        }
+
+        /* علامة زاوية دائمة على الصورة: ✔ نجاح / ✕ فشل */
+        .upload-success-mark {
+            position: absolute;
+            top: 4px;
+            left: 4px;
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            background: #28a745;
+            color: #fff;
+            font-size: 1rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+            z-index: 3;
+        }
+
+        .upload-success-mark.error {
+            background: #dc3545;
+        }
+
+        .attachment-card.upload-done {
+            border: 2px solid #28a745;
+        }
+
+        .attachment-card.upload-error {
+            border: 2px solid #dc3545;
         }
 
         /* تحسين شارات الحالة */
@@ -446,6 +529,8 @@
                     });
                 }, 500);
             }
+            // لإتاحة بدء الرفع من منطق الحفظ النهائي في manageForm
+            window.startChunkUpload = startChunkUpload;
 
             function retryFailedTask(task, personKey) {
                 task.status = 'pending';
@@ -1105,6 +1190,16 @@
             }
         }
 
+            // علامة زاوية دائمة (✔ نجاح / ✕ فشل) تُلصق على صورة المرفق
+            function appendUploadMark(target, isError) {
+                if (!target) return;
+                target.querySelectorAll('.upload-success-mark').forEach(mark => mark.remove());
+                const mark = document.createElement('div');
+                mark.className = 'upload-success-mark' + (isError ? ' error' : '');
+                mark.textContent = isError ? '✕' : '✔';
+                target.appendChild(mark);
+            }
+
             // تحسين renderAttachmentTasksUI للعرض الفوري المحسن
             window.renderAttachmentTasksUI = function(personKey) {
                 console.log(`[renderAttachmentTasksUI] 🎨 تحديث واجهة البوابة: ${personKey}`);
@@ -1123,6 +1218,10 @@
                     return;
                 }
 
+                // تحرير روابط الصور القديمة قبل إعادة البناء (منع تسرّب الذاكرة عند تحديث التقدم)
+                previewDiv.querySelectorAll('.attachment-card[data-object-url]').forEach(oldCard => {
+                    URL.revokeObjectURL(oldCard.dataset.objectUrl);
+                });
                 previewDiv.innerHTML = '';
                 const arr = allDocs.get(personKey) || [];
 
@@ -1162,6 +1261,7 @@
                     // ⭐ منطق العرض الفوري المحسن
                     let previewFile = null;
                     let showProcessingOverlay = false;
+                    let uploadOverlayTarget = null;
 
                     // أولوية العرض: دائماً اعرض ملف صالح (بما في HEIC)
                     if (task.originalFile && (
@@ -1193,6 +1293,7 @@
                         const imgContainer = document.createElement('div');
                         imgContainer.className = 'position-relative mb-1 attachment-preview-container';
                         imgContainer.style.display = 'inline-block';
+                        uploadOverlayTarget = imgContainer;
 
                         const img = document.createElement('img');
                         const objectUrl = URL.createObjectURL(previewFile);
@@ -1252,10 +1353,34 @@
                                 <div class="progress mt-1 mx-auto" style="height: 5px; width: 80%;">
                                   <div class="progress-bar progress-bar-striped progress-bar-animated bg-success" role="progressbar" style="width: ${task.uploadProgress || 0}%"></div>
                                 </div>`;
+                                // طبقة تقدم فوق الصورة نفسها
+                                if (uploadOverlayTarget) {
+                                    const progressOverlay = document.createElement('div');
+                                    progressOverlay.className = 'upload-progress-overlay';
+
+                                    const percentLabel = document.createElement('div');
+                                    percentLabel.className = 'upload-percent';
+                                    percentLabel.textContent = `جاري الرفع ${task.uploadProgress || 0}%`;
+
+                                    const bar = document.createElement('div');
+                                    bar.className = 'upload-bar';
+                                    const barFill = document.createElement('div');
+                                    barFill.className = 'upload-bar-fill';
+                                    barFill.style.width = `${task.uploadProgress || 0}%`;
+                                    bar.appendChild(barFill);
+
+                                    progressOverlay.appendChild(percentLabel);
+                                    progressOverlay.appendChild(bar);
+                                    uploadOverlayTarget.appendChild(progressOverlay);
+                                }
                             } else if (task.uploadStatus === 'error') {
                                 statusDiv.innerHTML = `<span class="status-badge failed">❌ فشل الرفع</span><br><span class="text-danger small" style="font-size: 0.65rem;">${task.errorMessage || 'خطأ في الشبكة'}</span>`;
+                                card.classList.add('upload-error');
+                                appendUploadMark(uploadOverlayTarget, true);
                             } else {
                                 statusDiv.innerHTML = '<span class="status-badge completed">✅ تم الرفع بنجاح</span>';
+                                card.classList.add('upload-done');
+                                appendUploadMark(uploadOverlayTarget, false);
                             }
                             // إضافة تأثير نجاح للبطاقة
                             card.classList.add('attachment-card');
@@ -1270,6 +1395,8 @@
                                 ? 'انتهت المهلة'
                                 : errorMsg.length > 25 ? errorMsg.substring(0, 25) + '...' : errorMsg;
                             statusDiv.innerHTML = `<span class="status-badge failed">❌ فشل</span><br><span class="text-danger small" style="font-size: 0.65rem;">${displayMsg}</span>`;
+                            card.classList.add('upload-error');
+                            appendUploadMark(uploadOverlayTarget, true);
                             break;
                         default:
                             statusDiv.innerHTML = '<span class="status-badge">❓ غير معروف</span>';

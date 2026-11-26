@@ -505,7 +505,7 @@ public sealed class LocalConnectorTests
                         FieldName = "voucherId",
                         TargetEntityType = "Voucher",
                         TargetClientUuid = voucherId,
-                        TargetCanonicalId = $"local:{voucherId:D}",
+                        TargetCanonicalId = null,
                         Kind = EntityReferenceKind.Field
                     }
                 ]
@@ -534,6 +534,13 @@ public sealed class LocalConnectorTests
         Assert.Equal(concurrencyToken, root.GetProperty("expectedConcurrencyToken").GetGuid());
         Assert.Equal(voucherId, root.GetProperty("envelope").GetProperty("entity").GetProperty("references")[0]
             .GetProperty("targetClientUuid").GetGuid());
+        Assert.Equal(
+            $"local:{voucherId:D}",
+            root.GetProperty("envelope").GetProperty("entity").GetProperty("references")[0]
+                .GetProperty("targetCanonicalId").GetString());
+        Assert.Equal(
+            $"local:{redemptionId:D}",
+            root.GetProperty("envelope").GetProperty("entity").GetProperty("canonicalId").GetString());
         Assert.Equal(7, root.GetProperty("envelope").GetProperty("baseVersion").GetUInt64());
     }
 

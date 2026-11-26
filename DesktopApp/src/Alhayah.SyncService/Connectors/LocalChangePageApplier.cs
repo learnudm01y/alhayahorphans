@@ -1,11 +1,14 @@
 using Alhayah.LocalData.Data;
 using Alhayah.SyncService.Cursors;
+using Alhayah.SyncService.Merge;
 using Microsoft.EntityFrameworkCore;
 
 namespace Alhayah.SyncService.Connectors;
 
-public sealed class LocalChangePageApplier : IChangePageApplier
+public sealed class LocalChangePageApplier(SafeMergeService? mergeService = null) : IChangePageApplier
 {
+    private readonly SafeMergeService _mergeService = mergeService ?? new SafeMergeService();
+
     public async Task ApplyAsync(
         LocalStoreDbContext context,
         string sourceId,
@@ -45,16 +48,13 @@ public sealed class LocalChangePageApplier : IChangePageApplier
             }
             else
             {
-                EnsureCanonicalIdentity(cached.CanonicalId, change.CanonicalId);
-                cached.CanonicalId = change.CanonicalId ?? cached.CanonicalId;
-                cached.BaseVersion = change.ConcurrencyToken ?? cached.BaseVersion;
-                cached.RowVersion = change.RowVersion ?? cached.RowVersion;
-                cached.UpdatedAtUtc = change.OccurredAtUtc ?? cached.UpdatedAtUtc;
-                if (!deleted)
+                if (await _mergeService.ApplyRemoteAsync(context, sourceId, change, cached, cancellationToken).ConfigureAwait(false))
                 {
-                    cached.PayloadJson = change.PayloadJson;
-                    cached.SearchTextNormalized = change.SearchText.Trim().ToUpperInvariant();
+                    continue;
                 }
+
+                EnsureCanonicalIdentity(cached.CanonicalId, change.CanonicalId);
+                cached.BaseVersion = change.ConcurrencyToken ?? cached.BaseVersion;
             }
 
             cached.DeletedAtUtc = deleted ? change.DeletedAtUtc : null;

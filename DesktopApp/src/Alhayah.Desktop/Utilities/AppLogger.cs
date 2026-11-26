@@ -12,7 +12,11 @@ public enum AppLogEvent
     RestoreStarted,
     RestoreSucceeded,
     RestoreFailed,
-    RestoreCancelled
+    RestoreCancelled,
+    ConflictReviewOpened,
+    ConflictNotificationReceived,
+    ConflictDecisionPending,
+    ConflictDecisionConfirmed
 }
 
 public interface IAppLogger

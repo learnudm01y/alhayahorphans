@@ -64,7 +64,7 @@ public sealed class DeviceCertificateValidator : IDisposable
     public void Dispose() => _trustedRootCertificate.Dispose();
 
     private static byte[] ComputeSpkiPinHash(X509Certificate2 certificate) =>
-        SHA256.HashData(certificate.PublicKey.GetSubjectPublicKeyInfo());
+        SHA256.HashData(certificate.PublicKey.ExportSubjectPublicKeyInfo());
 
     private static byte[] ParsePin(string pin)
     {

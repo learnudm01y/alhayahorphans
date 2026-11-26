@@ -86,7 +86,9 @@ public sealed class SmokeTests
                 service,
                 authentication,
                 new BackupClient(client, NullAppLogger.Instance),
-                new RestoreClient(client, NullAppLogger.Instance)));
+                new RestoreClient(client, NullAppLogger.Instance)),
+            new ConflictReviewViewModel(
+                new ConflictReviewClient(client, authentication, NullAppLogger.Instance)));
     }
 
     private static void EnsureApplicationResources()

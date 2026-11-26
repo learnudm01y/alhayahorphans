@@ -2,6 +2,7 @@ using System.Text.Json;
 using Alhayah.Contracts.Domain;
 using Alhayah.LocalData.Data;
 using Alhayah.LocalData.Repositories;
+using Alhayah.SyncService.Conflicts;
 using Alhayah.SyncService.Services;
 using Alhayah.SyncService.Storage;
 using Microsoft.EntityFrameworkCore;
@@ -17,6 +18,11 @@ public interface IOutboxTransport
     string SourceId { get; }
 
     Task SendAsync(OutboxDelivery delivery, CancellationToken cancellationToken);
+}
+
+public interface IConfirmableOutboxTransport : IOutboxTransport
+{
+    Task<bool> TrySendAsync(OutboxDelivery delivery, CancellationToken cancellationToken);
 }
 
 public sealed record OutboxPassResult
@@ -97,9 +103,28 @@ public sealed class OutboxProcessor
                     }
 
                     deliveryStarted = true;
-                    await _transport.SendAsync(
-                        new OutboxDelivery(operation.OperationId, operation.SourceId, envelope),
-                        cancellationToken).ConfigureAwait(false);
+                    OutboxDelivery delivery = new(operation.OperationId, operation.SourceId, envelope);
+                    bool confirmed = true;
+                    if (_transport is IConfirmableOutboxTransport confirmable)
+                    {
+                        confirmed = await confirmable.TrySendAsync(delivery, cancellationToken).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        await _transport.SendAsync(delivery, cancellationToken).ConfigureAwait(false);
+                    }
+
+                    if (!confirmed)
+                    {
+                        await RecordFailureAsync(operation.OperationId, attemptCount, now, cancellationToken).ConfigureAwait(false);
+                        return new OutboxPassResult
+                        {
+                            SentCount = sentCount,
+                            PendingCount = operations.Count - index,
+                            NextRetryAtUtc = now + _retryPolicy.GetDelay(attemptCount)
+                        };
+                    }
+
                     if (await AcknowledgeAsync(operation.OperationId, attemptCount, cancellationToken).ConfigureAwait(false))
                     {
                         sentCount++;
@@ -117,6 +142,14 @@ public sealed class OutboxProcessor
                     }
 
                     throw;
+                }
+                catch (ConflictResolutionRejectedException exception)
+                {
+                    await using LocalStoreDbContext context = _store.CreateContext();
+                    await new ConflictQueue(_timeProvider).RejectAsync(
+                        context, operation.OperationId,
+                        _timeProvider.GetUtcNow(), CancellationToken.None).ConfigureAwait(false);
+                    continue;
                 }
                 catch (Exception exception) when (IsRetryableOrPersistenceFailure(exception))
                 {
@@ -175,7 +208,7 @@ public sealed class OutboxProcessor
         OutboxOperation? operation = await context.OutboxOperations
             .SingleOrDefaultAsync(item => item.OperationId == operationId, cancellationToken)
             .ConfigureAwait(false);
-        if (operation is null || operation.Status == "Sent")
+        if (operation is null || operation.Status != "Pending")
         {
             return false;
         }
@@ -183,6 +216,8 @@ public sealed class OutboxProcessor
         operation.Status = "Sent";
         operation.AttemptCount = attemptCount;
         operation.LastAttemptAtUtc = _timeProvider.GetUtcNow();
+        await new ConflictQueue(_timeProvider).ConfirmAsync(
+            context, operationId, operation.LastAttemptAtUtc.Value, cancellationToken).ConfigureAwait(false);
         await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
         return true;
@@ -198,7 +233,7 @@ public sealed class OutboxProcessor
         OutboxOperation? operation = await context.OutboxOperations
             .SingleOrDefaultAsync(item => item.OperationId == operationId, cancellationToken)
             .ConfigureAwait(false);
-        if (operation is null || operation.Status == "Sent")
+        if (operation is null || operation.Status != "Pending")
         {
             return false;
         }

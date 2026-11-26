@@ -1,0 +1,117 @@
+<UserControl x:Class="Alhayah.Desktop.Views.ConflictReviewView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             FlowDirection="RightToLeft"
+             FontFamily="{StaticResource AppFontFamily}">
+    <UserControl.Resources>
+        <Style x:Key="ConflictCardStyle" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="20" />
+            <Setter Property="Margin" Value="0,0,0,16" />
+        </Style>
+        <Style x:Key="ConflictTitleStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="18" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}" />
+        </Style>
+        <Style x:Key="ConflictSecondaryButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource SecondaryBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Margin" Value="6,0,0,0" />
+        </Style>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel>
+            <TextBlock FontSize="{StaticResource TitleFontSize}"
+                       FontWeight="SemiBold"
+                       Text="مراجعة التعارضات" />
+            <TextBlock Margin="0,8,0,20"
+                       Foreground="{StaticResource TextMutedBrush}"
+                       Text="تُعرض القيم من الذاكرة المحلية فقط. حفظ القرار لا ينتظر الشبكة، ويظل معلقاً حتى تأكيد الخادم." />
+
+            <Border Style="{StaticResource ConflictCardStyle}">
+                <StackPanel>
+                    <Grid>
+                        <TextBlock Style="{StaticResource ConflictTitleStyle}" Text="التعارضات المحفوظة" />
+                        <Button HorizontalAlignment="Left"
+                                Command="{Binding LoadCommand}"
+                                Content="تحديث من الجهاز"
+                                Style="{StaticResource ConflictSecondaryButtonStyle}" />
+                    </Grid>
+                    <TextBlock Margin="0,6,0,12"
+                               Foreground="{StaticResource TextMutedBrush}"
+                               Text="{Binding StatusMessage}" />
+                    <TextBlock Visibility="{Binding CanResolveConflicts, Converter={StaticResource BooleanToVisibilityConverter}}"
+                               Text="هذه الصفحة متاحة للمدير فقط." />
+                    <ListBox x:Name="ConflictsList"
+                             MaxHeight="220"
+                             ItemsSource="{Binding Conflicts}"
+                             SelectedItem="{Binding SelectedConflict}">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="4">
+                                    <TextBlock FontWeight="SemiBold" Text="{Binding EntityType}" />
+                                    <TextBlock Foreground="{StaticResource TextMutedBrush}" Text="{Binding ConflictClass}" />
+                                    <TextBlock Text="{Binding Status}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource ConflictCardStyle}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource ConflictTitleStyle}" Text="مقارنة القيم واتخاذ القرار" />
+                    <TextBlock Margin="0,6,0,12"
+                               Foreground="{StaticResource TextMutedBrush}"
+                               Text="حدد الحقول التي تريد اعتماد النسخة المحلية لها، أو اختر قرار الخادم أو الجهاز بالكامل." />
+                    <DataGrid x:Name="ComparisonGrid"
+                              AutoGenerateColumns="False"
+                              IsReadOnly="True"
+                              ItemsSource="{Binding ComparisonFields}"
+                              HeadersVisibility="Column"
+                              GridLinesVisibility="Horizontal">
+                        <DataGrid.Columns>
+                            <DataGridTemplateColumn Header="اختيار" Width="70">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <CheckBox HorizontalAlignment="Center"
+                                                  IsChecked="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="الحقل" Binding="{Binding FieldName}" Width="*" />
+                            <DataGridTextColumn Header="النسخة الأساسية" Binding="{Binding BaseValue}" Width="*" />
+                            <DataGridTextColumn Header="النسخة المحلية" Binding="{Binding LocalValue}" Width="*" />
+                            <DataGridTextColumn Header="نسخة الخادم" Binding="{Binding RemoteValue}" Width="*" />
+                            <DataGridTextColumn Header="حساسية" Binding="{Binding IsCritical}" Width="80" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
+                        <Button Command="{Binding ResolveSelectedFieldsCommand}"
+                                Content="اعتماد الحقول المحددة" />
+                        <Button Command="{Binding ResolveServerCommand}"
+                                Content="اعتماد الخادم"
+                                Style="{StaticResource ConflictSecondaryButtonStyle}" />
+                        <Button Command="{Binding ResolveLocalCommand}"
+                                Content="اعتماد الجهاز"
+                                Style="{StaticResource ConflictSecondaryButtonStyle}" />
+                        <Button Command="{Binding RejectCommand}"
+                                Content="رفض التعارض"
+                                Style="{StaticResource ConflictSecondaryButtonStyle}" />
+                    </StackPanel>
+                    <TextBlock Margin="0,12,0,0"
+                               Foreground="{StaticResource TextMutedBrush}"
+                               Text="لا تُسجّل قيم المقارنة في notifier أو السجل أو التدقيق." />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -76,7 +76,7 @@ public sealed class UnitOfWork
                 CreatedAtUtc = entity.CreatedAtUtc,
                 ResolvedAtUtc = entity.CanonicalId is null ? null : entity.CreatedAtUtc
             });
-            AddSynchronizationArtifacts(envelope, entity, auditContext);
+            await AddSynchronizationArtifactsAsync(envelope, entity, auditContext, cancellationToken).ConfigureAwait(false);
             await _context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
             await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
             return entity;
@@ -113,7 +113,7 @@ public sealed class UnitOfWork
             entity.SearchTextNormalized = LocalCacheRepository.NormalizeSearchText(searchText);
             entity.RowVersion = NewRowVersion();
             entity.UpdatedAtUtc = envelope.OccurredAtUtc;
-            AddSynchronizationArtifacts(envelope, entity, auditContext);
+            await AddSynchronizationArtifactsAsync(envelope, entity, auditContext, cancellationToken).ConfigureAwait(false);
             await _context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
             await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
             return entity;
@@ -153,7 +153,7 @@ public sealed class UnitOfWork
             entity.DeletedByDeviceId = envelope.Tombstone.DeletedByDeviceId;
             entity.RowVersion = NewRowVersion();
             entity.UpdatedAtUtc = envelope.OccurredAtUtc;
-            AddSynchronizationArtifacts(envelope, entity, auditContext);
+            await AddSynchronizationArtifactsAsync(envelope, entity, auditContext, cancellationToken).ConfigureAwait(false);
             await _context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
             await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
             return entity;
@@ -175,12 +175,19 @@ public sealed class UnitOfWork
         return entity ?? throw new KeyNotFoundException("The active cached entity was not found.");
     }
 
-    private void AddSynchronizationArtifacts(
+    private async Task AddSynchronizationArtifactsAsync(
         SyncEnvelope envelope,
         CachedEntity entity,
-        LocalAuditContext auditContext)
+        LocalAuditContext auditContext,
+        CancellationToken cancellationToken)
     {
         string envelopeJson = JsonSerializer.Serialize(envelope);
+        bool hasPendingConflict = await _context.SyncConflicts.AnyAsync(conflict =>
+            conflict.SourceId == entity.SourceId &&
+            conflict.EntityType == entity.EntityType &&
+            conflict.ClientUuid == entity.ClientUuid &&
+            (conflict.Status == "PendingReview" || conflict.Status == "PendingResolution"),
+            cancellationToken).ConfigureAwait(false);
         _outbox.Add(new OutboxOperation
         {
             OperationId = envelope.OperationId,
@@ -190,7 +197,7 @@ public sealed class UnitOfWork
             ClientUuid = entity.ClientUuid,
             OperationType = envelope.OperationType.ToString(),
             EnvelopeJson = envelopeJson,
-            Status = "Pending",
+            Status = hasPendingConflict ? "Held" : "Pending",
             AttemptCount = 0,
             CreatedAtUtc = envelope.OccurredAtUtc
         });

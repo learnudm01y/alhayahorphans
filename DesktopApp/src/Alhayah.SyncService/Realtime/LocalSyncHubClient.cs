@@ -69,7 +69,7 @@ public sealed class LocalSyncHubClient : ILocalSyncHubClient
                 .Build();
             _connection = connection;
             _onChanged = onChanged;
-            connection.On<LocalOperationResult>("localOperationChanged", _ => _ = InvokeHintAsync());
+            connection.On<LocalOperationResult>("localOperationChanged", _ => InvokeHintAsync());
             await connection.StartAsync(cancellationToken).ConfigureAwait(false);
         }
         catch

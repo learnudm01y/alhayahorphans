@@ -11,5 +11,6 @@ public partial class MainWindow : Window
         InitializeComponent();
         DataContext = viewModel;
         ConnectionSettingsHost.Content = new ConnectionSettingsView(viewModel.ConnectionSettings);
+        ConflictReviewHost.Content = new ConflictReviewView { DataContext = viewModel.ConflictReview };
     }
 }

@@ -61,6 +61,19 @@
                     </StackPanel>
                 </Button>
 
+                <Button Command="{Binding NavigateToConflictsCommand}"
+                        Style="{StaticResource NavigationButtonStyle}">
+                    <StackPanel Orientation="Horizontal">
+                        <Path Width="20"
+                              Height="20"
+                              Margin="0,0,10,0"
+                              Data="{StaticResource ConflictIcon}"
+                              Fill="{StaticResource SecondaryBrush}"
+                              Stretch="Uniform" />
+                        <TextBlock VerticalAlignment="Center" Text="مراجعة التعارضات" />
+                    </StackPanel>
+                </Button>
+
                 <Button Command="{Binding NavigateToSettingsCommand}"
                         Style="{StaticResource NavigationButtonStyle}">
                     <StackPanel Orientation="Horizontal">
@@ -110,6 +123,11 @@
                             </StackPanel>
                         </Border>
                     </StackPanel>
+                </Grid>
+
+                <Grid x:Name="ConflictReviewPanel"
+                      Visibility="{Binding IsConflictReviewSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <ContentControl x:Name="ConflictReviewHost" />
                 </Grid>
 
                 <Grid x:Name="SettingsPanel"

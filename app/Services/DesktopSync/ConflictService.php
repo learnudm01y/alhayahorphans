@@ -95,7 +95,8 @@ class ConflictService
         string $conflictUuid,
         int $expectedConflictVersion,
         string $resolution,
-        array $selectedFields = []
+        array $selectedFields = [],
+        ?string $resolutionOperationId = null
     ): array {
         $this->ensureSchema();
         if (!in_array($resolution, ['server', 'local', 'selected-fields'], true)) {
@@ -107,7 +108,8 @@ class ConflictService
             $conflictUuid,
             $expectedConflictVersion,
             $resolution,
-            $selectedFields
+            $selectedFields,
+            $resolutionOperationId
         ): array {
             $conflict = DB::table(self::TABLE)->where('conflict_uuid', $conflictUuid)->lockForUpdate()->first();
             if ($conflict === null) {
@@ -116,6 +118,20 @@ class ConflictService
 
             $state = $this->decode($conflict->resolution_payload_json);
             $currentVersion = (int) ($state['conflictVersion'] ?? 1);
+            $storedOperationId = $state['resolutionOperationId'] ?? null;
+            if ($conflict->status === 'resolved' && $resolutionOperationId !== null &&
+                is_string($storedOperationId) && hash_equals($storedOperationId, $resolutionOperationId)) {
+                $decision = $state['decision'] ?? null;
+                $storedFields = $decision['selectedFields'] ?? [];
+                $requestedFields = $selectedFields;
+                sort($storedFields);
+                sort($requestedFields);
+                if ($expectedConflictVersion === ($decision['expectedConflictVersion'] ?? null) &&
+                    $resolution === ($decision['resolution'] ?? null) && $storedFields === $requestedFields) {
+                    return $decision['result'];
+                }
+            }
+
             if ($conflict->status !== 'pending' || $expectedConflictVersion !== $currentVersion) {
                 throw new DomainException('The conflict version is stale.');
             }
@@ -135,6 +151,7 @@ class ConflictService
                 'selectedFields' => $selectedFields,
                 'expectedConflictVersion' => $expectedConflictVersion,
                 'resolvedByUserId' => $user->getKey(),
+                'resolutionOperationId' => $resolutionOperationId,
                 'resolvedAt' => $now->toISOString(),
                 'result' => $result,
             ];
@@ -143,6 +160,7 @@ class ConflictService
                 'status' => 'resolved',
                 'resolution_payload_json' => $this->encode([
                     'conflictVersion' => $nextVersion,
+                    'resolutionOperationId' => $resolutionOperationId,
                     'decision' => $decision,
                 ]),
                 'resolved_by_user_id' => $user->getKey(),

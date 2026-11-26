@@ -7,6 +7,7 @@ use App\Services\DesktopSync\ConflictService;
 use DomainException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
 use InvalidArgumentException;
 use RuntimeException;
 
@@ -43,9 +44,13 @@ class ConflictController extends Controller
         $validated = $request->validate([
             'expectedConflictVersion' => ['required', 'integer', 'min:1'],
             'resolution' => ['required', 'in:server,local,selected-fields'],
-            'selectedFields' => ['sometimes', 'array', 'min:1'],
+            'selectedFields' => ['sometimes', 'array'],
             'selectedFields.*' => ['string', 'distinct', 'max:191'],
         ]);
+        $operationId = Validator::make(
+            ['operationId' => $request->header('X-Operation-Id')],
+            ['operationId' => ['nullable', 'uuid']]
+        )->validate()['operationId'] ?? null;
 
         try {
             return response()->json($this->conflicts->resolve(
@@ -53,7 +58,8 @@ class ConflictController extends Controller
                 $conflictUuid,
                 (int) $validated['expectedConflictVersion'],
                 $validated['resolution'],
-                $validated['selectedFields'] ?? []
+                $validated['selectedFields'] ?? [],
+                $operationId
             ));
         } catch (DomainException $exception) {
             return response()->json([

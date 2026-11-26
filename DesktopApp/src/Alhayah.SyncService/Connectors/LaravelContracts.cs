@@ -256,6 +256,21 @@ public sealed record LaravelPushBatchResult
     public IReadOnlyList<Guid> PendingOperationIds { get; init; } = [];
 }
 
+public sealed record LaravelConflictResolutionResponse
+{
+    [JsonPropertyName("status")]
+    public required string Status { get; init; }
+
+    [JsonPropertyName("conflictVersion")]
+    public int ConflictVersion { get; init; }
+
+    [JsonPropertyName("resolution")]
+    public string? Resolution { get; init; }
+
+    [JsonPropertyName("selectedFields")]
+    public IReadOnlyList<string> SelectedFields { get; init; } = [];
+}
+
 public sealed record LaravelAttachmentManifest
 {
     [JsonPropertyName("operationId")]

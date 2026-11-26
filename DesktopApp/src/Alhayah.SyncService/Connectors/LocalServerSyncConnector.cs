@@ -946,7 +946,9 @@ public sealed class LocalServerSyncConnector : ISyncChannel
             References = envelope.Entity.References.Select(reference => reference with
             {
                 TargetCanonicalId = reference.TargetCanonicalId ??
-                    (reference.TargetClientUuid is Guid targetUuid ? LocalCanonicalId(targetUuid) : null)
+                    (reference.TargetClientUuid is Guid targetUuid && targetUuid != Guid.Empty
+                        ? LocalCanonicalId(targetUuid)
+                        : null)
             }).ToList()
         };
         return envelope with { Entity = entity };

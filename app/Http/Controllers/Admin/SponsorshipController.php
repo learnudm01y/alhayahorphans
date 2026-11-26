@@ -2363,12 +2363,10 @@ class SponsorshipController extends Controller
             } else {
                 // ✅ تصدير كامل البيانات - بناءً على الأعمدة المرئية
 
-                // تعريف جميع الأعمدة المتاحة
+                // ✅ التصدير بصيغة استمارة الطفل: القالب يغطي حقول المكفول/الأم/المعيل/البنك (A–Y)
+                // وتُعرَّف هنا الأعمدة الإضافية التي لا نظير لها في القالب فقط
+                $childFormService = app(\App\Services\ChildFormExportService::class);
                 $allColumns = [
-                    'orphan_name' => ['title' => 'الإسم', 'callback' => function($s) { return $s->orphan_name ?: '-'; }],
-                    'identity_number' => ['title' => 'رقم الهوية', 'callback' => function($s) { return $s->identity_number ?: '-'; }],
-                    'guardian_name' => ['title' => 'إسم المعيل', 'callback' => function($s) { return $s->guardian_name ?: '-'; }],
-                    'guardian_identity' => ['title' => 'رقم هوية المعيل', 'callback' => function($s) { return $s->guardian_identity_number ?: '-'; }],
                     'sponsor_name' => ['title' => 'إسم المؤسسة الكافلة', 'callback' => function($s) {
                         return $s->sponsors && $s->sponsors->count() > 0 ? $s->sponsors->pluck('sponsor_name')->implode(' + ') : ($s->sponsor ? $s->sponsor->sponsor_name : '-');
                     }],
@@ -2390,65 +2388,8 @@ class SponsorshipController extends Controller
                         if ($s->guardianData && $s->guardianData->city) return $s->guardianData->city->city;
                         return '-';
                     }],
-                    'address' => ['title' => 'العنوان', 'callback' => function($s) {
-                        if ($s->relationData && $s->relationData->data_current_address) return $s->relationData->data_current_address;
-                        if ($s->guardianData && $s->guardianData->data_current_address) return $s->guardianData->data_current_address;
-                        return '-';
-                    }],
-                    'bank_name' => ['title' => 'إسم البنك', 'callback' => function($s) {
-                        $fileId = $s->relationData?->file_id_number ?: $s->guardianData?->file_id_number;
-                        if ($fileId) {
-                            $account = GuardianBankAccount::where('guardian_registration', $fileId)->where('check_account', 1)->first();
-                            if ($account) {
-                                $bankName = $account->bank_name;
-                                if (is_numeric($bankName)) {
-                                    $bankModel = \App\Models\BankName::find($bankName);
-                                    return $bankModel ? $bankModel->description : $bankName;
-                                }
-                                return $bankName;
-                            }
-                        }
-                        return '-';
-                    }],
-                    'account_holder_name' => ['title' => 'إسم صاحب الحساب', 'callback' => function($s) {
-                        $fileId = $s->relationData?->file_id_number ?: $s->guardianData?->file_id_number;
-                        if ($fileId) {
-                            $account = GuardianBankAccount::where('guardian_registration', $fileId)->where('check_account', 1)->first();
-                            return $account?->re_guardian_name ?: '-';
-                        }
-                        return '-';
-                    }],
-                    'account_holder_id' => ['title' => 'رقم هوية صاحب الحساب', 'callback' => function($s) {
-                        $fileId = $s->relationData?->file_id_number ?: $s->guardianData?->file_id_number;
-                        if ($fileId) {
-                            $account = GuardianBankAccount::where('guardian_registration', $fileId)->where('check_account', 1)->first();
-                            return $account?->person_owner_identity_number ?: '-';
-                        }
-                        return '-';
-                    }],
-                    'account_phone' => ['title' => 'رقم الجوال المربوط بالحساب', 'callback' => function($s) {
-                        $fileId = $s->relationData?->file_id_number ?: $s->guardianData?->file_id_number;
-                        if ($fileId) {
-                            $account = GuardianBankAccount::where('guardian_registration', $fileId)->where('check_account', 1)->first();
-                            return $account?->re_phone_number ?: '-';
-                        }
-                        return '-';
-                    }],
-                    'iban_shekel_export' => ['title' => 'حساب شيكل (IBAN)', 'callback' => function($s) {
-                        $fileId = $s->relationData?->file_id_number ?: $s->guardianData?->file_id_number;
-                        if ($fileId) {
-                            $account = GuardianBankAccount::where('guardian_registration', $fileId)->where('check_account', 1)->first();
-                            return $account?->iban_shekel ?: '-';
-                        }
-                        return '-';
-                    }],
-                    'iban_usd_export' => ['title' => 'حساب دولار (IBAN)', 'callback' => function($s) {
-                        $fileId = $s->relationData?->file_id_number ?: $s->guardianData?->file_id_number;
-                        if ($fileId) {
-                            $account = GuardianBankAccount::where('guardian_registration', $fileId)->where('check_account', 1)->first();
-                            return $account?->iban_usd ?: '-';
-                        }
-                        return '-';
+                    'bank_name' => ['title' => 'إسم البنك', 'callback' => function($s) use ($childFormService) {
+                        return $childFormService->bankNameFor($s) ?: '-';
                     }],
                     'remaining_days' => ['title' => 'المتبقي', 'callback' => function($s) {
                         if ($s->remaining_days !== null) {
@@ -2481,47 +2422,8 @@ class SponsorshipController extends Controller
 
                 Log::info('📊 عدد الأعمدة للتصدير', ['count' => count($columnsToExport)]);
 
-                // إنشاء رؤوس الأعمدة
-                $headers = array_map(function($col) { return $col['title']; }, $columnsToExport);
-                $sheet->fromArray($headers, NULL, 'A1');
-
-                // تنسيق رؤوس الأعمدة
-                $headerStyle = [
-                    'font' => [
-                        'bold' => true,
-                        'size' => 12,
-                        'color' => ['rgb' => 'FFFFFF']
-                    ],
-                    'fill' => [
-                        'fillType' => Fill::FILL_SOLID,
-                        'startColor' => ['rgb' => '009EF7']
-                    ],
-                    'alignment' => [
-                        'horizontal' => Alignment::HORIZONTAL_CENTER,
-                        'vertical' => Alignment::VERTICAL_CENTER,
-                    ]
-                ];
-
-                $lastColumn = chr(64 + count($columnsToExport)); // A=65, so we use 64+count
-                $sheet->getStyle('A1:' . $lastColumn . '1')->applyFromArray($headerStyle);
-
-                // كتابة البيانات
-                $row = 2;
-                foreach ($sponsorships as $sponsorship) {
-                    $data = [];
-                    foreach ($columnsToExport as $colKey => $colDef) {
-                        $data[] = $colDef['callback']($sponsorship);
-                    }
-                    $sheet->fromArray($data, NULL, 'A' . $row);
-                    $row++;
-                }
-
-                // ضبط عرض الأعمدة تلقائياً
-                $colIndex = 'A';
-                for ($i = 0; $i < count($columnsToExport); $i++) {
-                    $sheet->getColumnDimension($colIndex)->setAutoSize(true);
-                    $colIndex++;
-                }
+                // ✅ توليد الملف بصيغة استمارة الطفل: القالب A–Y + الأعمدة الإضافية بعد Y
+                $spreadsheet = $childFormService->generate($sponsorships, $columnsToExport);
 
                 $filename = 'sponsorships_' . date('Y-m-d_His') . '.xlsx';
             }

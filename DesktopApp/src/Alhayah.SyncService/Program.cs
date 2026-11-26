@@ -1,10 +1,12 @@
 using Alhayah.Contracts.Ipc;
 using Alhayah.SyncService;
 using Alhayah.SyncService.Configuration;
+using Alhayah.SyncService.Conflicts;
 using Alhayah.SyncService.Connectors;
 using Alhayah.SyncService.Cursors;
 using Alhayah.SyncService.Identity;
 using Alhayah.SyncService.Ipc;
+using Alhayah.SyncService.Merge;
 using Alhayah.SyncService.Outbox;
 using Alhayah.SyncService.Realtime;
 using Alhayah.SyncService.Security;
@@ -38,6 +40,9 @@ builder.Services.AddSingleton<LocalAuthenticationService>();
 builder.Services.AddSingleton<IAdministratorBootstrapService, UnavailableAdministratorBootstrapService>();
 builder.Services.AddSingleton<SyncChannelRegistry>();
 builder.Services.AddSingleton<RetryPolicy>();
+builder.Services.AddSingleton<ConflictQueue>();
+builder.Services.AddSingleton<ConflictNotifier>();
+builder.Services.AddSingleton<SafeMergeService>();
 builder.Services.AddSingleton<IChangePageApplier, LaravelChangePageApplier>();
 builder.Services.AddSingleton<CursorStore>();
 builder.Services.AddSingleton<ClientIdentityMapStore>();
@@ -69,13 +74,14 @@ builder.Services.AddSingleton(_ => new LocalConnectorOptions
 });
 builder.Services.AddKeyedSingleton<IChangePageApplier>(
     "local",
-    (_, _) => new LocalChangePageApplier());
+    (services, _) => new LocalChangePageApplier(services.GetRequiredService<SafeMergeService>()));
 builder.Services.AddKeyedSingleton<CursorStore>(
     "local",
     (services, _) => new CursorStore(
         services.GetRequiredService<ISyncServiceStore>(),
         services.GetRequiredKeyedService<IChangePageApplier>("local"),
-        services.GetRequiredService<TimeProvider>()));
+        services.GetRequiredService<TimeProvider>(),
+        services.GetRequiredService<ConflictNotifier>()));
 builder.Services.AddSingleton<LocalServerSyncConnector>(services => new LocalServerSyncConnector(
     services.GetRequiredService<ILocalHttpClientFactory>(),
     services.GetRequiredService<LocalConnectorOptions>(),

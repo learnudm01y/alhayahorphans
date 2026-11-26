@@ -257,6 +257,24 @@ public sealed record SynchronizeNowResult
     public required string Status { get; init; }
 }
 
+public sealed record ConflictFieldReviewData
+{
+    [JsonPropertyName("fieldName")]
+    public required string FieldName { get; init; }
+
+    [JsonPropertyName("baseValue")]
+    public JsonElement? BaseValue { get; init; }
+
+    [JsonPropertyName("localValue")]
+    public JsonElement? LocalValue { get; init; }
+
+    [JsonPropertyName("remoteValue")]
+    public JsonElement? RemoteValue { get; init; }
+
+    [JsonPropertyName("criticality")]
+    public FieldCriticality Criticality { get; init; }
+}
+
 public sealed record ConflictReviewData
 {
     [JsonPropertyName("conflictId")]
@@ -282,6 +300,12 @@ public sealed record ConflictReviewData
 
     [JsonPropertyName("rowVersion")]
     public string? RowVersion { get; init; }
+
+    [JsonPropertyName("conflictVersion")]
+    public int ConflictVersion { get; init; } = 1;
+
+    [JsonPropertyName("fields")]
+    public IReadOnlyList<ConflictFieldReviewData> Fields { get; init; } = [];
 }
 
 public sealed record ConflictListResponse
@@ -300,6 +324,15 @@ public sealed record ConflictResolutionRequest
 
     [JsonPropertyName("decision")]
     public required string Decision { get; init; }
+
+    [JsonPropertyName("expectedConflictVersion")]
+    public int ExpectedConflictVersion { get; init; } = 1;
+
+    [JsonPropertyName("selectedFields")]
+    public IReadOnlyList<string> SelectedFields { get; init; } = [];
+
+    [JsonPropertyName("resolutionOperationId")]
+    public Guid? ResolutionOperationId { get; init; }
 }
 
 public sealed record ConflictResolutionResponse
@@ -309,6 +342,12 @@ public sealed record ConflictResolutionResponse
 
     [JsonPropertyName("status")]
     public required string Status { get; init; }
+
+    [JsonPropertyName("resolutionOperationId")]
+    public Guid? ResolutionOperationId { get; init; }
+
+    [JsonPropertyName("conflictVersion")]
+    public int ConflictVersion { get; init; }
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<AuditResult>))]

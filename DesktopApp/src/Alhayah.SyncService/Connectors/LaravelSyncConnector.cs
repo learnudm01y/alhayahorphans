@@ -10,6 +10,7 @@ using System.Text.Json.Nodes;
 using Alhayah.Contracts.Domain;
 using Alhayah.Contracts.Ipc;
 using Alhayah.LocalData.Data;
+using Alhayah.SyncService.Conflicts;
 using Alhayah.SyncService.Cursors;
 using Alhayah.SyncService.Identity;
 using Alhayah.SyncService.Outbox;
@@ -18,11 +19,12 @@ using Alhayah.SyncService.Services;
 using Alhayah.SyncService.Storage;
 using Alhayah.SyncService.Synchronization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Logging;
 
 namespace Alhayah.SyncService.Connectors;
 
-public sealed class LaravelSyncConnector : ISyncChannel, IOutboxTransport
+public sealed class LaravelSyncConnector : ISyncChannel, IConfirmableOutboxTransport
 {
     private const string Channel = "changes";
     private static readonly string[] StageNames = ["DNS", "TCP", "TLS", "Auth", "Compatibility"];
@@ -309,6 +311,7 @@ public sealed class LaravelSyncConnector : ISyncChannel, IOutboxTransport
             .Where(result => !string.Equals(result.Status, "applied", StringComparison.OrdinalIgnoreCase))
             .Select(result => result.OperationId));
         await _identities.ApplyPushResultsAsync(payload.Results, cancellationToken).ConfigureAwait(false);
+        await CaptureServerConflictsAsync(payload.Results, cancellationToken).ConfigureAwait(false);
         return new LaravelPushBatchResult
         {
             Results = payload.Results,
@@ -420,17 +423,82 @@ public sealed class LaravelSyncConnector : ISyncChannel, IOutboxTransport
     public async Task SendAsync(OutboxDelivery delivery, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(delivery);
+        if (!await TrySendAsync(delivery, cancellationToken).ConfigureAwait(false))
+        {
+            throw new LaravelSyncException("operation_pending", "The Laravel operation was not applied and remains pending.");
+        }
+    }
+
+    public async Task<bool> TrySendAsync(OutboxDelivery delivery, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(delivery);
         if (!string.Equals(delivery.SourceId, SourceId, StringComparison.Ordinal))
         {
             throw new LaravelSyncException("source_mismatch", "The outbox operation belongs to a different synchronization source.");
         }
 
+        ConflictResolutionDispatch? resolution = ConflictQueue.TryReadDispatch(delivery.Envelope);
+        if (resolution is not null)
+        {
+            return await ResolveConflictAsync(delivery, resolution, cancellationToken).ConfigureAwait(false);
+        }
+
         LaravelPushBatchResult result = await PushBatchAsync([delivery.Envelope], cancellationToken).ConfigureAwait(false);
         LaravelPushOperationResult? applied = result.Results.SingleOrDefault(item => item.OperationId == delivery.OperationId);
-        if (applied is null || !string.Equals(applied.Status, "applied", StringComparison.OrdinalIgnoreCase))
+        return applied is not null && string.Equals(applied.Status, "applied", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private async Task<bool> ResolveConflictAsync(
+        OutboxDelivery delivery,
+        ConflictResolutionDispatch resolution,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(resolution.ServerConflictUuid))
         {
-            throw new LaravelSyncException("operation_pending", "The Laravel operation was not applied and remains pending.");
+            return false;
         }
+
+        string requestJson = JsonSerializer.Serialize(new
+        {
+            expectedConflictVersion = resolution.ExpectedConflictVersion,
+            resolution = resolution.Resolution,
+            selectedFields = resolution.SelectedFields
+        });
+        using HttpClient client = await _clientFactory.CreateAsync(cancellationToken).ConfigureAwait(false);
+        byte[] response;
+        try
+        {
+            response = await SendWithRetryAsync(
+                client,
+                () =>
+                {
+                    HttpRequestMessage request = CreateAuthenticatedRequest(
+                        HttpMethod.Post,
+                        $"conflicts/{Uri.EscapeDataString(resolution.ServerConflictUuid)}/resolve",
+                        requestJson);
+                    request.Headers.Add("X-Operation-Id", delivery.OperationId.ToString());
+                    return request;
+                },
+                authenticated: true,
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (LaravelSyncException exception) when (exception.StatusCode == HttpStatusCode.Conflict)
+        {
+            throw new ConflictResolutionRejectedException(delivery.OperationId, exception.ErrorCode);
+        }
+
+        LaravelConflictResolutionResponse result = Deserialize<LaravelConflictResolutionResponse>(response);
+        string[] returnedFields = result.SelectedFields.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
+        string[] requestedFields = resolution.SelectedFields.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
+        if (!string.Equals(result.Status, "resolved", StringComparison.OrdinalIgnoreCase) ||
+            result.ConflictVersion != resolution.ExpectedConflictVersion + 1 ||
+            !string.Equals(result.Resolution, resolution.Resolution, StringComparison.Ordinal) ||
+            !returnedFields.SequenceEqual(requestedFields))
+        {
+            throw new LaravelSyncException("invalid_response", "The Laravel conflict confirmation is invalid.");
+        }
+
+        return true;
     }
 
     public async Task<SynchronizeNowResult> SynchronizeNowAsync(CancellationToken cancellationToken)
@@ -462,16 +530,43 @@ public sealed class LaravelSyncConnector : ISyncChannel, IOutboxTransport
                     break;
                 }
 
-                LaravelPushBatchResult pushed = await PushBatchAsync(envelopes, cancellationToken).ConfigureAwait(false);
-                await AcknowledgeAppliedAsync(pushed.Results, cancellationToken).ConfigureAwait(false);
-                if (pushed.PendingOperationIds.Count > 0)
+                List<SyncEnvelope> resolutions = envelopes.Where(envelope => ConflictQueue.TryReadDispatch(envelope) is not null).ToList();
+                List<LaravelPushOperationResult> confirmed = [];
+                foreach (SyncEnvelope envelope in resolutions)
                 {
-                    if (pushed.Results.Any(result => string.Equals(result.Status, "applied", StringComparison.OrdinalIgnoreCase)))
+                    OutboxDelivery delivery = new(envelope.OperationId, SourceId, envelope);
+                    try
                     {
-                        continue;
+                        if (await TrySendAsync(delivery, cancellationToken).ConfigureAwait(false))
+                        {
+                            confirmed.Add(new LaravelPushOperationResult { OperationId = envelope.OperationId, Status = "applied" });
+                        }
+                        else
+                        {
+                            pending = true;
+                        }
                     }
+                    catch (ConflictResolutionRejectedException)
+                    {
+                        await using LocalStoreDbContext context = _store.CreateContext();
+                        await new ConflictQueue(_timeProvider).RejectAsync(
+                            context, delivery.OperationId, _timeProvider.GetUtcNow(), cancellationToken).ConfigureAwait(false);
+                        pending = true;
+                    }
+                }
 
-                    pending = true;
+                await AcknowledgeAppliedAsync(confirmed, cancellationToken).ConfigureAwait(false);
+                List<SyncEnvelope> normal = envelopes.Where(envelope => ConflictQueue.TryReadDispatch(envelope) is null).ToList();
+                if (normal.Count > 0)
+                {
+                    LaravelPushBatchResult pushed = await PushBatchAsync(normal, cancellationToken).ConfigureAwait(false);
+                    await AcknowledgeAppliedAsync(pushed.Results, cancellationToken).ConfigureAwait(false);
+                    confirmed.AddRange(pushed.Results);
+                    pending |= pushed.PendingOperationIds.Count > 0;
+                }
+
+                if (pending && confirmed.All(result => !string.Equals(result.Status, "applied", StringComparison.OrdinalIgnoreCase)))
+                {
                     break;
                 }
 
@@ -886,6 +981,49 @@ public sealed class LaravelSyncConnector : ISyncChannel, IOutboxTransport
         return operation;
     }
 
+    private async Task CaptureServerConflictsAsync(
+        IReadOnlyList<LaravelPushOperationResult> results,
+        CancellationToken cancellationToken)
+    {
+        Dictionary<Guid, ServerConflictMetadata> conflicts = [];
+        foreach (LaravelPushOperationResult result in results.Where(item => item.Conflict.HasValue))
+        {
+            ServerConflictMetadata? metadata = result.Conflict!.Value.Deserialize<ServerConflictMetadata>();
+            if (metadata is null || !Guid.TryParse(metadata.ConflictUuid, out _))
+            {
+                throw new LaravelSyncException("invalid_response", "Laravel returned an invalid conflict identifier.");
+            }
+
+            conflicts[result.OperationId] = metadata;
+        }
+
+        if (conflicts.Count == 0)
+        {
+            return;
+        }
+
+        Guid[] conflictIds = [.. conflicts.Keys];
+        await using LocalStoreDbContext context = _store.CreateContext();
+        List<OutboxOperation> operations = await context.OutboxOperations
+            .Where(operation => operation.Status == "Pending" && conflictIds.Contains(operation.OperationId))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+        foreach (OutboxOperation operation in operations)
+        {
+            SyncEnvelope envelope = JsonSerializer.Deserialize<SyncEnvelope>(operation.EnvelopeJson)
+                ?? throw new JsonException("The pending outbox envelope is empty.");
+            Dictionary<string, JsonElement> extensions = envelope.ExtensionData is null
+                ? []
+                : new Dictionary<string, JsonElement>(envelope.ExtensionData)
+            {
+                [ServerConflictMetadata.ExtensionName] = JsonSerializer.SerializeToElement(conflicts[operation.OperationId])
+            };
+            operation.EnvelopeJson = JsonSerializer.Serialize(envelope with { ExtensionData = extensions });
+        }
+
+        await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+    }
+
     private async Task AcknowledgeAppliedAsync(
         IReadOnlyList<LaravelPushOperationResult> results,
         CancellationToken cancellationToken)
@@ -900,18 +1038,32 @@ public sealed class LaravelSyncConnector : ISyncChannel, IOutboxTransport
         }
 
         await using LocalStoreDbContext context = _store.CreateContext();
-        List<OutboxOperation> operations = await context.OutboxOperations
-            .Where(operation => appliedIds.Contains(operation.OperationId) && operation.Status == "Pending")
-            .ToListAsync(cancellationToken)
+        await using IDbContextTransaction transaction = await context.Database
+            .BeginTransactionAsync(cancellationToken)
             .ConfigureAwait(false);
-        foreach (OutboxOperation operation in operations)
+        try
         {
-            operation.Status = "Sent";
-            operation.AttemptCount++;
-            operation.LastAttemptAtUtc = _timeProvider.GetUtcNow();
-        }
+            List<OutboxOperation> operations = await context.OutboxOperations
+                .Where(operation => appliedIds.Contains(operation.OperationId) && operation.Status == "Pending")
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+            foreach (OutboxOperation operation in operations)
+            {
+                operation.Status = "Sent";
+                operation.AttemptCount++;
+                operation.LastAttemptAtUtc = _timeProvider.GetUtcNow();
+                await new ConflictQueue(_timeProvider).ConfirmAsync(
+                    context, operation.OperationId, operation.LastAttemptAtUtc.Value, cancellationToken).ConfigureAwait(false);
+            }
 
-        await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+            throw;
+        }
     }
 
     private static bool IsReady(SyncEnvelope envelope)

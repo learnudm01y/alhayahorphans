@@ -812,6 +812,9 @@
             window.collectRegistrationErrors = function() {
                 const errors = [];
                 const state = context();
+                // مرفقات جاهزة لم تُرفع بعد: لا تُعدّ خطأً، بل يرفعها منطق الحفظ النهائي قبل الإرسال
+                const pendingUploads = [];
+                const pendingUploadSeen = new Set();
                 const add = (el, message) => errors.push({ field: el, message });
                 const requireField = (el, label) => {
                     if (!value(el)) add(el, `يرجى استكمال ${label}.`);
@@ -946,17 +949,30 @@
                         && !option.closest('optgroup[disabled]') && option.dataset.enabled !== 'false' && option.dataset.enabled !== '0');
                     const tasks = docsFor(key);
                     const enabledTasks = tasks.filter(doc => doc && options.some(option => option.value === String(doc.type || doc.docType || '')));
-                    const issueGroups = { failed: 0, uploading: 0, processing: 0, invalid: 0 };
+                    const issueGroups = { failed: 0, processing: 0, invalid: 0 };
+                    const queuePendingUpload = doc => {
+                        if (!doc || pendingUploadSeen.has(doc)) return;
+                        pendingUploadSeen.add(doc);
+                        pendingUploads.push({ doc, key, label: person.label });
+                    };
                     tasks.forEach(doc => {
                         const issue = documentIssue(doc, key);
-                        if (issue) issueGroups[issue]++;
+                        if (issue === 'uploading') {
+                            // رفع جارٍ أو لم يبدأ: يُنتظر/يُستكمل عند الحفظ النهائي مع شريط تقدم
+                            queuePendingUpload(doc);
+                            return;
+                        }
+                        if (issue) {
+                            issueGroups[issue]++;
+                            return;
+                        }
+                        // مكتمل القصّ وبلا مسار مؤقت (كان يُرسل مضمّناً): يُرفع قبل الحفظ
+                        if (doc && doc.status === 'completed' && doc.processedFile && !doc.tempPath) {
+                            queuePendingUpload(doc);
+                        }
                     });
                     if (issueGroups.failed) {
                         add(select, `مرفق فشلت معالجته — ${person.label}. استخدم زر «إعادة المحاولة» على بطاقته أو احذفه وأعد رفعه.`);
-                    }
-                    if (issueGroups.uploading) {
-                        const progress = Math.max(0, ...tasks.filter(doc => doc && doc.uploadStatus === 'uploading').map(doc => doc.uploadProgress || 0));
-                        add(select, `الرفع ما زال جارياً (${progress}%) — ${person.label}. يرجى الانتظار حتى اكتمال الرفع ثم إعادة الحفظ.`);
                     }
                     if (issueGroups.processing) {
                         add(select, `معالجة مرفق ما زالت جارية — ${person.label}. يرجى الانتظار ثم إعادة الحفظ.`);
@@ -971,6 +987,7 @@
                         add(select, `يرجى رفع الوثيقة المطلوبة: ${title || 'وثيقة إلزامية'} — ${person.label}.`);
                     });
                 });
+                errors.pendingUploads = pendingUploads;
                 return errors;
             };
 
@@ -1021,11 +1038,163 @@
                     }
                 });
             };
+
+            // نافذة استكمال رفع المرفقات قبل الحفظ النهائي:
+            // تعرض كل مرفق غير مرفوع مع شريط تقدمه، ثم تكمل الحفظ تلقائياً بعد اكتمال الرفع.
+            let pendingUploadFlowActive = false;
+            window.runPendingAttachmentsUploadFlow = function(pending) {
+                if (pendingUploadFlowActive) return;
+                if (!pending || !pending.length || typeof window.startChunkUpload !== 'function') return;
+                pendingUploadFlowActive = true;
+                if (typeof window.isSubmitting !== 'undefined') window.isSubmitting = false;
+
+                // بدء رفع المرفقات المتوقفة (قصّها مكتمل وبلا مسار مؤقت)
+                pending.forEach(item => {
+                    const doc = item.doc;
+                    if (!doc || doc.status !== 'completed' || !doc.processedFile || doc.tempPath) return;
+                    if (doc.uploadStatus === 'uploading') return;
+                    try {
+                        window.startChunkUpload(doc, item.key);
+                    } catch (err) {
+                        console.warn('[pendingUploads] تعذر بدء الرفع:', err);
+                    }
+                });
+
+                const rows = [];
+                let stopped = false;
+                let intervalId = null;
+                let timeoutId = null;
+
+                const stateOf = doc => {
+                    if (!doc) return { done: false, failed: false, pct: 0, text: 'غير متاح' };
+                    if (doc.status === 'failed') return { done: false, failed: true, pct: 100, text: 'فشلت المعالجة' };
+                    if (doc.tempPath) return { done: true, failed: false, pct: 100, text: 'تم الرفع' };
+                    if (doc.uploadStatus === 'error') return { done: false, failed: true, pct: 100, text: 'فشل الرفع' };
+                    if (doc.uploadStatus === 'uploading') {
+                        const pct = Math.max(0, Math.min(100, doc.uploadProgress || 0));
+                        return { done: false, failed: false, pct, text: `جارٍ الرفع ${pct}%` };
+                    }
+                    return { done: false, failed: false, pct: 0, text: 'بانتظار بدء الرفع' };
+                };
+
+                const stopTimers = () => {
+                    if (intervalId) { clearInterval(intervalId); intervalId = null; }
+                    if (timeoutId) { clearTimeout(timeoutId); timeoutId = null; }
+                };
+
+                const finish = result => {
+                    if (stopped) return;
+                    stopped = true;
+                    pendingUploadFlowActive = false;
+                    stopTimers();
+                    if (result === 'done') {
+                        Swal.close();
+                        setTimeout(() => {
+                            if (typeof mainForm.requestSubmit === 'function') {
+                                mainForm.requestSubmit();
+                            } else {
+                                mainForm.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+                            }
+                        }, 150);
+                        return;
+                    }
+                    Swal.update({
+                        icon: 'error',
+                        title: result === 'timeout' ? 'تعذّر إكمال الرفع' : 'تعذّر رفع بعض المرفقات',
+                        showConfirmButton: true,
+                        confirmButtonText: 'إغلاق',
+                        allowOutsideClick: true,
+                        allowEscapeKey: true
+                    });
+                };
+
+                Swal.fire({
+                    icon: 'info',
+                    title: 'جارٍ استكمال رفع المرفقات',
+                    html: '<div dir="rtl" style="text-align:right;"><div id="pendingUploadsSummary" class="fw-bold mb-2"></div><div id="pendingUploadsList"></div></div>',
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
+                    showConfirmButton: false,
+                    didOpen: () => {
+                        const list = document.getElementById('pendingUploadsList');
+                        const summary = document.getElementById('pendingUploadsSummary');
+                        if (!list || !summary) return;
+
+                        pending.forEach(item => {
+                            const row = document.createElement('div');
+                            row.style.marginBottom = '10px';
+
+                            const head = document.createElement('div');
+                            head.className = 'd-flex justify-content-between small';
+                            head.style.gap = '8px';
+
+                            const nameEl = document.createElement('span');
+                            nameEl.textContent = `${(item.doc && (item.doc.docTypeName || item.doc.docType)) || 'وثيقة'} — ${item.label || ''}`;
+
+                            const percentEl = document.createElement('span');
+                            percentEl.className = 'small text-muted';
+                            percentEl.textContent = '...';
+
+                            head.appendChild(nameEl);
+                            head.appendChild(percentEl);
+
+                            const bar = document.createElement('div');
+                            bar.className = 'progress mt-1';
+                            bar.style.height = '6px';
+
+                            const barFill = document.createElement('div');
+                            barFill.className = 'progress-bar bg-success progress-bar-striped progress-bar-animated';
+                            barFill.style.width = '2%';
+                            barFill.setAttribute('role', 'progressbar');
+
+                            bar.appendChild(barFill);
+                            row.appendChild(head);
+                            row.appendChild(bar);
+                            list.appendChild(row);
+                            rows.push({ item, percentEl, barFill });
+                        });
+
+                        const update = () => {
+                            let doneCount = 0;
+                            let failed = false;
+                            rows.forEach(row => {
+                                const st = stateOf(row.item.doc);
+                                if (st.done) doneCount++;
+                                if (st.failed) failed = true;
+                                row.percentEl.textContent = st.text;
+                                row.percentEl.className = 'small ' + (st.failed ? 'text-danger' : 'text-muted');
+                                row.barFill.style.width = (st.done ? 100 : Math.max(2, st.pct)) + '%';
+                                row.barFill.classList.toggle('bg-success', !st.failed);
+                                row.barFill.classList.toggle('bg-danger', st.failed);
+                            });
+                            summary.textContent = `تم رفع ${doneCount} من ${rows.length}`;
+                            if (failed) { finish('failed'); return; }
+                            if (doneCount === rows.length) finish('done');
+                        };
+
+                        update();
+                        if (!stopped) intervalId = setInterval(update, 400);
+                        if (!stopped) timeoutId = setTimeout(() => finish('timeout'), 180000);
+                    },
+                    willClose: () => {
+                        pendingUploadFlowActive = false;
+                        stopTimers();
+                    }
+                });
+            };
+
             window.validateRegistrationBeforeSubmit = function() {
                 markedFields.forEach(el => el.classList.remove('is-invalid'));
                 markedFields.clear();
                 const errors = window.collectRegistrationErrors();
-                if (!errors.length) return true;
+                const pendingUploads = Array.isArray(errors.pendingUploads) ? errors.pendingUploads : [];
+                if (!errors.length) {
+                    if (pendingUploads.length && typeof window.runPendingAttachmentsUploadFlow === 'function') {
+                        window.runPendingAttachmentsUploadFlow(pendingUploads);
+                        return false;
+                    }
+                    return true;
+                }
                 if (mainForm.dataset.inflight !== '1') window.isSubmitting = false;
                 window.showRegistrationValidationErrors(errors);
                 return false;

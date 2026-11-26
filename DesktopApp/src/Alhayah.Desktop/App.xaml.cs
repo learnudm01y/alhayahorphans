@@ -41,6 +41,8 @@ public partial class App : Application
         services.AddSingleton<IAppLogger>(_ => new AppLogger());
         services.AddSingleton<IBackupClient, BackupClient>();
         services.AddSingleton<IRestoreClient, RestoreClient>();
+        services.AddSingleton<IConflictReviewClient, ConflictReviewClient>();
+        services.AddSingleton<ConflictReviewViewModel>();
         services.AddTransient<ConnectionSettingsViewModel>();
         services.AddTransient<MainViewModel>();
         services.AddTransient<MainWindow>();

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Alhayah.Contracts.Domain;
 using Alhayah.LocalData.Data;
+using Alhayah.SyncService.Services;
 using Alhayah.SyncService.Storage;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -106,15 +107,18 @@ public sealed class CursorStore
     private readonly ISyncServiceStore _store;
     private readonly IChangePageApplier _pageApplier;
     private readonly TimeProvider _timeProvider;
+    private readonly ConflictNotifier? _conflictNotifier;
 
     public CursorStore(
         ISyncServiceStore store,
         IChangePageApplier pageApplier,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        ConflictNotifier? conflictNotifier = null)
     {
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _pageApplier = pageApplier ?? throw new ArgumentNullException(nameof(pageApplier));
         _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
+        _conflictNotifier = conflictNotifier;
     }
 
     public async Task RegisterSourceAsync(
@@ -217,6 +221,11 @@ public sealed class CursorStore
         checkpoint.UpdatedAtUtc = _timeProvider.GetUtcNow();
         await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        if (_conflictNotifier is not null)
+        {
+            await _conflictNotifier.PublishPendingAsync(sourceId, cancellationToken).ConfigureAwait(false);
+        }
+
         return CursorCommitResult.Applied;
     }
 

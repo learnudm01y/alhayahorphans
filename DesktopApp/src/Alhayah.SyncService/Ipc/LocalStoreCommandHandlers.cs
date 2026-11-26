@@ -7,6 +7,7 @@ using Alhayah.LocalData.Data;
 using Alhayah.LocalData.Repositories;
 using Alhayah.LocalData.Services;
 using Alhayah.SyncService.Configuration;
+using Alhayah.SyncService.Conflicts;
 using Alhayah.SyncService.Security;
 using Alhayah.SyncService.Storage;
 using Alhayah.SyncService.Synchronization;
@@ -44,6 +45,7 @@ public sealed class LocalStoreCommandHandlers : ILocalStoreCommandHandler
     private readonly SyncServiceHostOptions _hostOptions;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<LocalStoreCommandHandlers> _logger;
+    private readonly ConflictQueue _conflictQueue;
 
     public LocalStoreCommandHandlers(
         ISyncServiceStore store,
@@ -54,7 +56,8 @@ public sealed class LocalStoreCommandHandlers : ILocalStoreCommandHandler
         SyncChannelRegistry channels,
         SyncServiceHostOptions hostOptions,
         TimeProvider timeProvider,
-        ILogger<LocalStoreCommandHandlers> logger)
+        ILogger<LocalStoreCommandHandlers> logger,
+        ConflictQueue? conflictQueue = null)
     {
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
@@ -65,6 +68,7 @@ public sealed class LocalStoreCommandHandlers : ILocalStoreCommandHandler
         _hostOptions = hostOptions ?? throw new ArgumentNullException(nameof(hostOptions));
         _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _conflictQueue = conflictQueue ?? new ConflictQueue(timeProvider);
         _hostOptions.Validate();
     }
 
@@ -393,29 +397,8 @@ public sealed class LocalStoreCommandHandlers : ILocalStoreCommandHandler
             .ConfigureAwait(false);
         _ = Deserialize<EmptyRequest>(request);
         await using LocalStoreDbContext context = _store.CreateContext();
-        SyncConflict[] conflicts = await context.SyncConflicts
-            .Where(item => item.SourceId == authenticated.Manifest.SourceId)
-            .OrderByDescending(item => item.CreatedAtUtc)
-            .Take(200)
-            .ToArrayAsync(cancellationToken)
-            .ConfigureAwait(false);
-        Guid[] clientIds = conflicts.Select(item => item.ClientUuid).ToArray();
-        Dictionary<Guid, string?> rowVersions = await context.CachedEntities
-            .IgnoreQueryFilters()
-            .Where(item => item.SourceId == authenticated.Manifest.SourceId && clientIds.Contains(item.ClientUuid))
-            .ToDictionaryAsync(item => item.ClientUuid, item => item.RowVersion, cancellationToken)
-            .ConfigureAwait(false);
-        ConflictReviewData[] items = conflicts.Select(item => new ConflictReviewData
-        {
-            ConflictId = item.Id,
-            OperationId = item.OperationId,
-            SourceId = item.SourceId,
-            EntityType = item.EntityType,
-            ClientUuid = item.ClientUuid,
-            ConflictClass = item.ConflictClass,
-            Status = item.Status,
-            RowVersion = rowVersions.GetValueOrDefault(item.ClientUuid)
-        }).ToArray();
+        ConflictReviewData[] items = [.. await _conflictQueue.ListAsync(
+            context, authenticated.Manifest.SourceId, cancellationToken).ConfigureAwait(false)];
         await RecordAuditAsync(request, authenticated, LocalPermissions.ResolveConflicts, cancellationToken)
             .ConfigureAwait(false);
         return new ConflictListResponse { Items = items };
@@ -428,38 +411,20 @@ public sealed class LocalStoreCommandHandlers : ILocalStoreCommandHandler
         AuthenticatedSession authenticated = await AuthorizeAsync(request, LocalPermissions.ResolveConflicts, cancellationToken)
             .ConfigureAwait(false);
         ConflictResolutionRequest resolution = Deserialize<ConflictResolutionRequest>(request);
-        if (!string.Equals(resolution.Decision, "Rejected", StringComparison.Ordinal))
-        {
-            throw new SyncServiceException("conflict_resolution_unavailable");
-        }
-
         await using LocalStoreDbContext context = _store.CreateContext();
-        SyncConflict conflict = await context.SyncConflicts.SingleOrDefaultAsync(
+        _ = await context.SyncConflicts.AsNoTracking().SingleOrDefaultAsync(
             item => item.Id == resolution.ConflictId && item.SourceId == authenticated.Manifest.SourceId,
             cancellationToken).ConfigureAwait(false)
             ?? throw new KeyNotFoundException();
-        if (!string.Equals(conflict.Status, "PendingReview", StringComparison.Ordinal))
-        {
-            throw new InvalidOperationException("The conflict has already been resolved.");
-        }
-
-        CachedEntity? entity = await context.CachedEntities.IgnoreQueryFilters().SingleOrDefaultAsync(
-            item => item.SourceId == conflict.SourceId &&
-                    item.EntityType == conflict.EntityType &&
-                    item.ClientUuid == conflict.ClientUuid,
+        ConflictResolutionResponse response = await _conflictQueue.ResolveAsync(
+            context,
+            resolution,
+            authenticated.User.Id,
+            authenticated.Session.DeviceId,
+            authenticated.Session.ManifestVersion,
             cancellationToken).ConfigureAwait(false);
-        if (entity is null || !string.Equals(entity.RowVersion, resolution.ExpectedRowVersion, StringComparison.Ordinal))
-        {
-            throw new DbUpdateConcurrencyException("The conflict row version is stale.");
-        }
-
-        conflict.Status = "Rejected";
-        conflict.ResolvedAtUtc = _timeProvider.GetUtcNow();
-        conflict.ResolvedByUserId = authenticated.User.Id;
-        await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-        await RecordAuditAsync(request, authenticated, LocalPermissions.ResolveConflicts, cancellationToken)
-            .ConfigureAwait(false);
-        return new ConflictResolutionResponse { ConflictId = conflict.Id, Status = conflict.Status };
+        _logger.LogInformation(new EventId(30102), "A manager conflict decision was saved locally.");
+        return response;
     }
 
     private async Task<AcknowledgedResponse> WriteAuditAsync(
