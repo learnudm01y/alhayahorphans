@@ -382,7 +382,11 @@ class ChildFormExportService
 
         $record = $this->orphanRecord($sponsorship);
         if ($record && $record->person_birth_date) {
-            return $record->person_birth_date->format('Y-m-d');
+            try {
+                return \Illuminate\Support\Carbon::parse((string) $record->person_birth_date)->format('Y-m-d');
+            } catch (\Throwable) {
+                return null;
+            }
         }
 
         return null;
