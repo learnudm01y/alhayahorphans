@@ -205,6 +205,11 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
         ->middleware('permission:تعديل سجل')
         ->name('records-management.enhancement-status');
 
+    // تدوير صورة المرفق 90° وحفظها فوق الملف الأصلي (لا يشمل ملفات PDF)
+    Route::post('records-management/rotate-attachment/{id}', [RecordsManagementEditController::class, 'rotateAttachment'])
+        ->middleware('permission:تعديل سجل')
+        ->name('records-management.rotate-attachment');
+
     // مسار إنشاء سجل جديد (upload via AJAX optional أو ضمن create form)
     Route::post('records-management/upload', [RecordsManagementEditController::class, 'upload'])
         ->name('records.management.upload');

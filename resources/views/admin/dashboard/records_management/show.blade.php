@@ -1371,6 +1371,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const ATTACHMENT_ENHANCE_URL = @json(url('admin/records-management/enhance-attachment'));
     const ATTACHMENT_ENHANCE_STATUS_URL = @json(url('admin/records-management/enhancement-status'));
+    const ATTACHMENT_ROTATE_URL = @json(url('admin/records-management/rotate-attachment'));
     const ATTACHMENT_CSRF = @json(csrf_token());
     const CAN_ENHANCE_ATTACHMENTS = @json(\Illuminate\Support\Facades\Gate::allows('تعديل سجل'));
     const attachmentPolling = new Set();
@@ -1385,6 +1386,38 @@ document.addEventListener('DOMContentLoaded', function() {
             if (src === oldUrl || src.indexOf(oldUrl + '?') === 0) {
                 img.setAttribute('src', withAttachmentVersion(oldUrl, version));
             }
+        });
+    }
+
+    function rotateAttachmentImage(att, button) {
+        if (button.getAttribute('data-busy') === '1') {
+            return;
+        }
+        const label = button.innerHTML;
+        button.setAttribute('data-busy', '1');
+        button.disabled = true;
+        button.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> جارٍ التدوير...';
+
+        fetch(ATTACHMENT_ROTATE_URL + '/' + att.id, {
+            method: 'POST',
+            headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': ATTACHMENT_CSRF }
+        })
+        .then(function(response) { return response.json().catch(function() { return {}; }); })
+        .then(function(data) {
+            if (data.success) {
+                refreshAttachmentImages(att.file_path, data.version);
+                _showToast(data.message || 'تم تدوير المرفق', 'success');
+            } else {
+                _showToast(data.message || 'تعذّر تدوير المرفق', 'error');
+            }
+        })
+        .catch(function() {
+            _showToast('حدث خطأ أثناء طلب التدوير', 'error');
+        })
+        .finally(function() {
+            button.removeAttribute('data-busy');
+            button.disabled = false;
+            button.innerHTML = label;
         });
     }
 
@@ -1504,6 +1537,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 openLink.rel = 'noopener';
                 openLink.innerHTML = '<i class="bi bi-box-arrow-up-right"></i> فتح في تبويب جديد';
                 actions.appendChild(openLink);
+            }
+
+            if (isImage && CAN_ENHANCE_ATTACHMENTS) {
+                const rotateButton = document.createElement('button');
+                rotateButton.type = 'button';
+                rotateButton.className = 'btn btn-sm btn-outline-secondary';
+                rotateButton.innerHTML = '<i class="bi bi-arrow-clockwise"></i> تدوير 90°';
+                rotateButton.addEventListener('click', function() {
+                    rotateAttachmentImage(att, rotateButton);
+                });
+                actions.appendChild(rotateButton);
             }
 
             if (att.is_document && isImage && CAN_ENHANCE_ATTACHMENTS) {

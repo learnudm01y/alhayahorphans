@@ -1771,6 +1771,20 @@ class RecordsManagementEditController extends Controller
         ]);
     }
 
+    /**
+     * تدوير صورة المرفق 90° مع عقارب الساعة وحفظها فوق الملف الأصلي.
+     */
+    public function rotateAttachment($id)
+    {
+        if (!\Illuminate\Support\Facades\Gate::allows('تعديل سجل')) {
+            return response()->json(['success' => false, 'status' => 'forbidden', 'message' => 'غير مصرح لك بتدوير المرفقات.'], 403);
+        }
+
+        $result = app(\App\Services\AttachmentRotationService::class)->rotate((int) $id);
+
+        return response()->json($result + ['version' => now()->getTimestampMs()], $result['success'] ? 200 : 422);
+    }
+
     public function delete($id)
     {
         try {
