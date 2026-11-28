@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Models\Data;
 use App\Models\DeadPepole;
 use App\Models\GuardianBankAccount;
-use App\Models\PortalGeneralRegistrationFieldValue;
 use App\Models\RePeople;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -34,16 +33,26 @@ class ChildFormExportService
         'field_living_mother_last_name',
         'field_living_mother_id',
         'field_mother_first_name',
+        'field_mother_second_name',
+        'field_mother_third_name',
+        'field_mother_last_name',
         'field_mother_id',
         'field_data_phone_number',
     ];
 
+    private const MOTHER_STATUS_ALIVE = 'alive';
+    private const MOTHER_STATUS_DECEASED = 'deceased';
+
     private array $rePeople = [];
     private array $fileRecords = [];
     private array $guardianById = [];
-    private array $deadPeople = [];
+    private array $deadPeopleByFile = [];
+    private array $deadPeopleByMotherId = [];
+    private array $knownMotherIdCandidates = [];
     private array $bankAccounts = [];
-    private array $portalFields = [];
+    private array $portalBySponsorship = [];
+    private array $portalByFile = [];
+    private array $portalByIdentity = [];
     private array $relations = [];
     private array $bankNames = [];
 
@@ -202,9 +211,13 @@ class ChildFormExportService
         $this->rePeople = [];
         $this->fileRecords = [];
         $this->guardianById = [];
-        $this->deadPeople = [];
+        $this->deadPeopleByFile = [];
+        $this->deadPeopleByMotherId = [];
+        $this->knownMotherIdCandidates = [];
         $this->bankAccounts = [];
-        $this->portalFields = [];
+        $this->portalBySponsorship = [];
+        $this->portalByFile = [];
+        $this->portalByIdentity = [];
         $this->relations = [];
         $this->bankNames = [];
 
@@ -218,6 +231,7 @@ class ChildFormExportService
                 ->values()
                 ->all();
             $sponsorshipIds = $chunk->pluck('id')->all();
+            $knownIdentities = collect($identities)->merge($guardianIdentities)->filter()->unique()->values()->all();
 
             if ($identities) {
                 RePeople::whereIn('person_id', $identities)->get()->each(function ($record) {
@@ -237,10 +251,24 @@ class ChildFormExportService
                 });
             }
 
-            if ($fileIds && Schema::hasTable('dead_people')) {
-                DeadPepole::whereIn('re_file_id', $fileIds)->get()->each(function ($record) {
-                    $this->deadPeople[(string) $record->re_file_id] = $record;
-                });
+            $deceasedMotherIdentities = $chunk
+                ->filter(fn ($sponsorship) => $this->isDeceasedMotherSponsorship($sponsorship))
+                ->pluck('identity_number')
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+
+            $this->loadDeadPeople(
+                array_values(array_unique(array_merge($fileIds, $deceasedMotherIdentities))),
+                []
+            );
+            $this->loadPortalRows($sponsorshipIds, $fileIds, $knownIdentities);
+
+            $motherIdCandidates = $this->knownMotherLookupKeys();
+            if ($motherIdCandidates) {
+                $this->loadPortalRows([], [], $motherIdCandidates);
+                $this->loadDeadPeople([], $motherIdCandidates);
             }
 
             if ($fileIds && Schema::hasTable('guardian_bank_accounts')) {
@@ -256,17 +284,9 @@ class ChildFormExportService
                     });
             }
 
-            if ($sponsorshipIds && Schema::hasTable('portal_general_registration_field_values')) {
-                PortalGeneralRegistrationFieldValue::whereIn('sponsorship_id', $sponsorshipIds)
-                    ->whereIn('field_key', self::PORTAL_FIELD_KEYS)
-                    ->get()
-                    ->each(function ($record) {
-                        $this->portalFields[$record->sponsorship_id][$record->field_key] = $record->field_value;
-                    });
-            }
-
             $relationshipIds = collect($this->fileRecords)
                 ->pluck('data_relationship')
+                ->merge(collect($this->guardianById)->pluck('data_relationship'))
                 ->filter()
                 ->unique()
                 ->values()
@@ -292,10 +312,224 @@ class ChildFormExportService
             'rows' => $rows->count(),
             're_people' => count($this->rePeople),
             'data_records' => count($this->fileRecords) + count($this->guardianById),
-            'dead_people' => count($this->deadPeople),
+            'dead_people' => count($this->deadPeopleByFile) + count($this->deadPeopleByMotherId),
             'bank_accounts' => count($this->bankAccounts),
-            'portal_rows' => count($this->portalFields),
+            'portal_rows' => count($this->portalBySponsorship) + count($this->portalByFile) + count($this->portalByIdentity),
         ]);
+    }
+
+    private function loadPortalRows(array $sponsorshipIds, array $fileIds, array $identities): void
+    {
+        $table = 'portal_general_registration_field_values';
+        if (!Schema::hasTable($table)) {
+            return;
+        }
+
+        $hasSponsorship = $sponsorshipIds && Schema::hasColumn($table, 'sponsorship_id');
+        $hasFile = $fileIds && Schema::hasColumn($table, 'file_id_number');
+        $hasIdentity = $identities && Schema::hasColumn($table, 'identity_number');
+
+        if (!$hasSponsorship && !$hasFile && !$hasIdentity) {
+            return;
+        }
+
+        $columns = ['id', 'field_key', 'field_value'];
+        if ($hasSponsorship) {
+            $columns[] = 'sponsorship_id';
+        }
+        if ($hasFile) {
+            $columns[] = 'file_id_number';
+        }
+        if ($hasIdentity) {
+            $columns[] = 'identity_number';
+        }
+
+        $sponsorshipLookup = array_values(array_unique(array_map('strval', $sponsorshipIds)));
+        $fileLookup = $this->lookupKeys($fileIds);
+        $identityLookup = $this->lookupKeys($identities);
+
+        $query = DB::table($table)
+            ->whereIn('field_key', self::PORTAL_FIELD_KEYS)
+            ->where(function ($query) use (
+                $hasSponsorship,
+                $hasFile,
+                $hasIdentity,
+                $sponsorshipLookup,
+                $fileLookup,
+                $identityLookup
+            ): void {
+                if ($hasSponsorship) {
+                    $query->orWhereIn('sponsorship_id', $sponsorshipLookup);
+                }
+                if ($hasFile) {
+                    $query->orWhereIn('file_id_number', $fileLookup);
+                }
+                if ($hasIdentity) {
+                    $query->orWhereIn('identity_number', $identityLookup);
+                }
+            });
+
+        if (Schema::hasColumn($table, 'updated_at')) {
+            $query->orderBy('updated_at');
+        }
+        $query->orderBy('id');
+
+        $query->get($columns)->each(function ($record): void {
+            $this->rememberPortalRecord($record);
+        });
+    }
+
+    private function rememberPortalRecord(object $record): void
+    {
+        $fieldKey = $this->stringOrNull($record->field_key ?? null);
+        if ($fieldKey === null) {
+            return;
+        }
+
+        $value = $record->field_value ?? null;
+        $sponsorshipId = $record->sponsorship_id ?? null;
+
+        if ($sponsorshipId !== null && $sponsorshipId !== '') {
+            $this->portalBySponsorship[(string) $sponsorshipId][$fieldKey] = $value;
+        }
+
+        $fileKey = $this->normalizeKey($record->file_id_number ?? null);
+        if ($fileKey !== '') {
+            $this->portalByFile[$fileKey][$fieldKey] = $value;
+        }
+
+        $identityKey = $this->normalizeKey($record->identity_number ?? null);
+        if ($identityKey !== '') {
+            $this->portalByIdentity[$identityKey][$fieldKey] = $value;
+        }
+
+        if (in_array($fieldKey, ['field_mother_id', 'field_living_mother_id'], true)) {
+            $rawValue = $this->stringOrNull($value);
+            if ($rawValue !== null) {
+                $this->knownMotherIdCandidates[$rawValue] = $rawValue;
+                $normalized = $this->normalizeKey($rawValue);
+                if ($normalized !== '') {
+                    $this->knownMotherIdCandidates[$normalized] = $normalized;
+                }
+            }
+        }
+    }
+
+    private function loadDeadPeople(array $fileIds, array $motherIds): void
+    {
+        if (!Schema::hasTable('dead_people')) {
+            return;
+        }
+
+        $hasFile = $fileIds && Schema::hasColumn('dead_people', 're_file_id');
+        $hasMotherId = $motherIds && Schema::hasColumn('dead_people', 'mother_id');
+
+        if (!$hasFile && !$hasMotherId) {
+            return;
+        }
+
+        $fileLookup = $this->lookupKeys($fileIds);
+        $motherLookup = $this->lookupKeys($motherIds);
+
+        $query = DeadPepole::query()
+            ->where(function ($query) use ($hasFile, $hasMotherId, $fileLookup, $motherLookup): void {
+                if ($hasFile) {
+                    $query->orWhereIn('re_file_id', $fileLookup);
+                }
+                if ($hasMotherId) {
+                    $query->orWhereIn('mother_id', $motherLookup);
+                }
+            });
+
+        if (Schema::hasColumn('dead_people', 'updated_at')) {
+            $query->orderByDesc('updated_at');
+        }
+        if (Schema::hasColumn('dead_people', 'id')) {
+            $query->orderByDesc('id');
+        }
+
+        $query->get()->each(function ($record): void {
+            $this->rememberDeadPeopleRecord($record);
+        });
+    }
+
+    private function rememberDeadPeopleRecord(DeadPepole $record): void
+    {
+        $fileKey = $this->normalizeKey($record->re_file_id ?? null);
+        $motherKey = $this->normalizeKey($record->mother_id ?? null);
+        $hasData = $this->deadRecordHasMotherData($record);
+
+        if ($motherKey !== '') {
+            $this->knownMotherIdCandidates[$motherKey] = $motherKey;
+            $existing = $this->deadPeopleByMotherId[$motherKey] ?? null;
+            if ($existing === null || (!$this->deadRecordHasMotherData($existing) && $hasData)) {
+                $this->deadPeopleByMotherId[$motherKey] = $record;
+            }
+        }
+
+        if ($fileKey !== '') {
+            $existing = $this->deadPeopleByFile[$fileKey] ?? null;
+            if ($existing === null || (!$this->deadRecordHasMotherData($existing) && $hasData)) {
+                $this->deadPeopleByFile[$fileKey] = $record;
+            }
+        }
+    }
+
+    private function knownMotherLookupKeys(): array
+    {
+        return array_values(array_unique(array_filter(
+            $this->knownMotherIdCandidates,
+            fn ($value) => $this->stringOrNull($value) !== null
+        )));
+    }
+
+    private function lookupKeys(array $values): array
+    {
+        $keys = [];
+        foreach ($values as $value) {
+            $raw = $this->stringOrNull($value);
+            if ($raw === null) {
+                continue;
+            }
+
+            $keys[$raw] = $raw;
+            $normalized = $this->normalizeKey($raw);
+            if ($normalized !== '') {
+                $keys[$normalized] = $normalized;
+            }
+        }
+
+        return array_values($keys);
+    }
+
+    private function normalizeKey($value): string
+    {
+        $value = $this->stringOrNull($value) ?? '';
+        if ($value === '') {
+            return '';
+        }
+
+        if (ctype_digit($value)) {
+            $value = ltrim($value, '0');
+            if ($value === '') {
+                $value = '0';
+            }
+        }
+
+        return $value;
+    }
+
+    private function normalizedUniqueKeys(array $values): array
+    {
+        $keys = [];
+        foreach ($values as $value) {
+            $normalized = $this->normalizeKey($value);
+            if ($normalized !== '') {
+                $keys[$normalized] = $normalized;
+            }
+        }
+
+        return array_values($keys);
     }
 
     /**
@@ -409,29 +643,45 @@ class ChildFormExportService
     private function motherQuartName($sponsorship)
     {
         $portal = $this->portalFor($sponsorship);
-        $status = $portal['field_mother_status'] ?? null;
+        $status = $this->resolveMotherStatus($sponsorship, $portal);
+        $motherIsGuardian = $this->guardianIsMother($sponsorship);
 
-        if ($status === 'حية') {
-            return $this->formatFullName(
+        if ($status === self::MOTHER_STATUS_ALIVE) {
+            $name = $this->formatFullName(
                 $portal['field_living_mother_first_name'] ?? null,
                 $portal['field_living_mother_second_name'] ?? null,
                 $portal['field_living_mother_third_name'] ?? null,
                 $portal['field_living_mother_last_name'] ?? null
             );
-        }
 
-        if ($status === 'متوفية') {
-            $dead = $this->deadPeopleFor($sponsorship);
-            if ($dead && $dead->mother_first_name) {
-                return $this->formatFullName(
-                    $dead->mother_first_name,
-                    $dead->mother_second_name,
-                    $dead->mother_third_name,
-                    $dead->mother_last_name
-                );
+            if ($name !== null) {
+                return $name;
             }
 
-            return $this->stringOrNull($portal['field_mother_first_name'] ?? null);
+            return $motherIsGuardian ? $this->guardianQuartName($sponsorship) : null;
+        }
+
+        if ($status === self::MOTHER_STATUS_DECEASED) {
+            $dead = $this->deadPeopleFor($sponsorship, $portal);
+            if ($dead) {
+                $name = $this->formatFullName(
+                    $dead->mother_first_name ?? null,
+                    $dead->mother_second_name ?? null,
+                    $dead->mother_third_name ?? null,
+                    $dead->mother_last_name ?? null
+                );
+
+                if ($name !== null) {
+                    return $name;
+                }
+            }
+
+            return $this->formatFullName(
+                $portal['field_mother_first_name'] ?? null,
+                $portal['field_mother_second_name'] ?? null,
+                $portal['field_mother_third_name'] ?? null,
+                $portal['field_mother_last_name'] ?? null
+            );
         }
 
         return null;
@@ -440,19 +690,27 @@ class ChildFormExportService
     private function motherId($sponsorship)
     {
         $portal = $this->portalFor($sponsorship);
-        $status = $portal['field_mother_status'] ?? null;
+        $status = $this->resolveMotherStatus($sponsorship, $portal);
+        $motherIsGuardian = $this->guardianIsMother($sponsorship);
+        $guardianIdentity = $motherIsGuardian ? $this->guardianIdentityNumber($sponsorship) : null;
 
-        if ($status === 'حية') {
-            return $this->stringOrNull($portal['field_living_mother_id'] ?? null);
+        if ($status === self::MOTHER_STATUS_ALIVE) {
+            return $this->stringOrNull($portal['field_living_mother_id'] ?? null)
+                ?: $this->stringOrNull($portal['field_mother_id'] ?? null)
+                ?: $guardianIdentity;
         }
 
-        if ($status === 'متوفية') {
-            $dead = $this->deadPeopleFor($sponsorship);
-            if ($dead && $dead->mother_id) {
-                return $this->stringOrNull($dead->mother_id);
+        if ($status === self::MOTHER_STATUS_DECEASED) {
+            $dead = $this->deadPeopleFor($sponsorship, $portal);
+            $identity = $this->stringOrNull($dead->mother_id ?? null)
+                ?: $this->stringOrNull($portal['field_mother_id'] ?? null)
+                ?: $guardianIdentity;
+
+            if ($identity === null && $this->isDeceasedMotherSponsorship($sponsorship)) {
+                $identity = $this->stringOrNull($sponsorship->identity_number);
             }
 
-            return $this->stringOrNull($portal['field_mother_id'] ?? null);
+            return $identity;
         }
 
         return null;
@@ -460,17 +718,129 @@ class ChildFormExportService
 
     private function motherAlive($sponsorship)
     {
-        $status = $this->portalFor($sponsorship)['field_mother_status'] ?? null;
+        return match ($this->resolveMotherStatus($sponsorship, $this->portalFor($sponsorship))) {
+            self::MOTHER_STATUS_ALIVE => 'نعم',
+            self::MOTHER_STATUS_DECEASED => 'لا',
+            default => null,
+        };
+    }
 
-        if ($status === 'حية') {
-            return 'نعم';
+    private function resolveMotherStatus($sponsorship, array $portal): ?string
+    {
+        $status = $this->normalizeMotherStatus($portal['field_mother_status'] ?? null);
+        if ($status !== null) {
+            return $status;
         }
 
-        if ($status === 'متوفية') {
-            return 'لا';
+        $dead = $this->deadPeopleFor($sponsorship, $portal);
+        if ($dead && $this->deadRecordHasMotherData($dead)) {
+            return self::MOTHER_STATUS_DECEASED;
+        }
+
+        if ($this->guardianIsMother($sponsorship)) {
+            return self::MOTHER_STATUS_ALIVE;
+        }
+
+        if ($this->hasPortalValue($portal, [
+            'field_living_mother_first_name',
+            'field_living_mother_second_name',
+            'field_living_mother_third_name',
+            'field_living_mother_last_name',
+            'field_living_mother_id',
+        ])) {
+            return self::MOTHER_STATUS_ALIVE;
+        }
+
+        if ($this->hasPortalValue($portal, [
+            'field_mother_first_name',
+            'field_mother_second_name',
+            'field_mother_third_name',
+            'field_mother_last_name',
+            'field_mother_id',
+        ])) {
+            return self::MOTHER_STATUS_DECEASED;
         }
 
         return null;
+    }
+
+    private function normalizeMotherStatus($value): ?string
+    {
+        $value = $this->stringOrNull($value);
+        if ($value === null) {
+            return null;
+        }
+
+        $normalized = mb_strtolower($value, 'UTF-8');
+        $normalized = str_replace(['آ', 'أ', 'إ', 'ٱ'], 'ا', $normalized);
+        $normalized = str_replace('ى', 'ي', $normalized);
+        $normalized = trim((string) preg_replace('/\s+/u', ' ', $normalized));
+
+        if (in_array($normalized, ['حية', 'حى', 'حي', 'على قيد الحياة', 'alive', '1'], true)) {
+            return self::MOTHER_STATUS_ALIVE;
+        }
+
+        if (in_array($normalized, ['متوفية', 'متوفاه', 'متوفى', 'متوفيه', 'dead', 'deceased', '0'], true)) {
+            return self::MOTHER_STATUS_DECEASED;
+        }
+
+        return null;
+    }
+
+    private function hasPortalValue(array $portal, array $keys): bool
+    {
+        foreach ($keys as $key) {
+            if ($this->stringOrNull($portal[$key] ?? null) !== null) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function deadRecordHasMotherData(?DeadPepole $record): bool
+    {
+        if (!$record) {
+            return false;
+        }
+
+        return $this->hasPortalValue([
+            'first' => $record->mother_first_name ?? null,
+            'second' => $record->mother_second_name ?? null,
+            'third' => $record->mother_third_name ?? null,
+            'last' => $record->mother_last_name ?? null,
+            'id' => $record->mother_id ?? null,
+        ], ['first', 'second', 'third', 'last', 'id']);
+    }
+
+    private function guardianIsMother($sponsorship): bool
+    {
+        $record = $this->guardianRecord($sponsorship);
+        if (!$record) {
+            return false;
+        }
+
+        $relationshipId = $record->data_relationship;
+        if ($relationshipId !== null && $relationshipId !== '' && (string) (int) $relationshipId === '1') {
+            return true;
+        }
+
+        $relationshipText = $this->relations[(int) $relationshipId] ?? null;
+
+        return in_array($this->stringOrNull($relationshipText), ['أم', 'الأم', 'والدة'], true);
+    }
+
+    private function guardianIdentityNumber($sponsorship): ?string
+    {
+        $record = $this->guardianRecord($sponsorship);
+
+        return $this->stringOrNull($sponsorship->guardian_identity_number)
+            ?: $this->stringOrNull($record?->data_id_number);
+    }
+
+    private function isDeceasedMotherSponsorship($sponsorship): bool
+    {
+        return mb_strtolower(trim((string) ($sponsorship->person_type ?? '')), 'UTF-8') === 'deceased_mother';
     }
 
     private function guardianRecord($sponsorship): ?Data
@@ -577,7 +947,79 @@ class ChildFormExportService
 
     private function portalFor($sponsorship): array
     {
-        return $this->portalFields[$sponsorship->id] ?? [];
+        $portal = [];
+
+        $merge = function (array $incoming) use (&$portal): void {
+            $portal = $this->mergeMissingPortalValues($portal, $incoming);
+        };
+
+        $merge($this->portalBySponsorship[(string) $sponsorship->id] ?? []);
+
+        $fileKeys = $this->normalizedUniqueKeys([
+            $sponsorship->relation_id_number,
+            $sponsorship->internal_file_number,
+        ]);
+        foreach ($fileKeys as $fileKey) {
+            $merge($this->portalByFile[$fileKey] ?? []);
+        }
+
+        $initialMotherKeys = $this->portalMotherIdentityKeys($portal);
+
+        $guardianIdentityKey = '';
+        if ($this->guardianIsMother($sponsorship)) {
+            $guardianIdentityKey = $this->normalizeKey($this->guardianIdentityNumber($sponsorship));
+            if ($guardianIdentityKey !== '') {
+                $initialMotherKeys = array_merge(
+                    $initialMotherKeys,
+                    $this->portalMotherIdentityKeys($this->portalByIdentity[$guardianIdentityKey] ?? [])
+                );
+            }
+        }
+
+        $childIdentityKey = $this->normalizeKey($sponsorship->identity_number);
+        if ($childIdentityKey !== '') {
+            $initialMotherKeys = array_merge(
+                $initialMotherKeys,
+                $this->portalMotherIdentityKeys($this->portalByIdentity[$childIdentityKey] ?? [])
+            );
+        }
+
+        foreach ($this->normalizedUniqueKeys($initialMotherKeys) as $motherKey) {
+            $merge($this->portalByIdentity[$motherKey] ?? []);
+        }
+
+        if ($guardianIdentityKey !== '') {
+            $merge($this->portalByIdentity[$guardianIdentityKey] ?? []);
+        }
+
+        if ($childIdentityKey !== '') {
+            $merge($this->portalByIdentity[$childIdentityKey] ?? []);
+        }
+
+        foreach ($this->portalMotherIdentityKeys($portal) as $motherKey) {
+            $merge($this->portalByIdentity[$motherKey] ?? []);
+        }
+
+        return $portal;
+    }
+
+    private function mergeMissingPortalValues(array $base, array $incoming): array
+    {
+        foreach ($incoming as $key => $value) {
+            if (!isset($base[$key]) || $this->stringOrNull($base[$key]) === null) {
+                $base[$key] = $value;
+            }
+        }
+
+        return $base;
+    }
+
+    private function portalMotherIdentityKeys(array $portal): array
+    {
+        return $this->normalizedUniqueKeys([
+            $portal['field_mother_id'] ?? null,
+            $portal['field_living_mother_id'] ?? null,
+        ]);
     }
 
     private function portalValue($sponsorship, string $key)
@@ -585,14 +1027,63 @@ class ChildFormExportService
         return $this->stringOrNull($this->portalFor($sponsorship)[$key] ?? null);
     }
 
-    private function deadPeopleFor($sponsorship): ?DeadPepole
+    private function deadPeopleFor($sponsorship, ?array $portal = null): ?DeadPepole
     {
-        $fileId = $sponsorship->relation_id_number ?: $sponsorship->internal_file_number;
-        if ($fileId === null || $fileId === '') {
-            return null;
+        $portal ??= $this->portalFor($sponsorship);
+
+        $lookup = function (string $key) use ($portal): ?DeadPepole {
+            return $this->deadPeopleByMotherId[$key]
+                ?? $this->deadPeopleByFile[$key]
+                ?? null;
+        };
+
+        $motherKeys = $this->normalizedUniqueKeys([
+            $portal['field_mother_id'] ?? null,
+            $portal['field_living_mother_id'] ?? null,
+        ]);
+        foreach ($motherKeys as $motherKey) {
+            $record = $lookup($motherKey);
+            if ($record && $this->deadRecordHasMotherData($record)) {
+                return $record;
+            }
         }
 
-        return $this->deadPeople[(string) $fileId] ?? null;
+        $fileKeys = $this->normalizedUniqueKeys([
+            $sponsorship->relation_id_number,
+            $sponsorship->internal_file_number,
+        ]);
+        foreach ($fileKeys as $fileKey) {
+            $record = $this->deadPeopleByFile[$fileKey] ?? null;
+            if ($record && $this->deadRecordHasMotherData($record)) {
+                return $record;
+            }
+        }
+
+        if ($this->isDeceasedMotherSponsorship($sponsorship)) {
+            $childIdentityKey = $this->normalizeKey($sponsorship->identity_number);
+            if ($childIdentityKey !== '') {
+                $record = $lookup($childIdentityKey);
+                if ($record) {
+                    return $record;
+                }
+            }
+        }
+
+        foreach ($motherKeys as $motherKey) {
+            $record = $lookup($motherKey);
+            if ($record) {
+                return $record;
+            }
+        }
+
+        foreach ($fileKeys as $fileKey) {
+            $record = $this->deadPeopleByFile[$fileKey] ?? null;
+            if ($record) {
+                return $record;
+            }
+        }
+
+        return null;
     }
 
     private function formatFullName(...$parts): ?string
